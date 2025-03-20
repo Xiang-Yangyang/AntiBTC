@@ -12,15 +12,18 @@ library PriceCalculator {
 
     uint256 constant PRICE_PRECISION = 1e8;  // 8 decimals for price
     uint256 constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
+    uint256 constant K = 1e8;               // K = 1 USD * BTC (反比例常数)
 
     /**
-     * @dev Calculate the inverse price for AntiBTC
+     * @dev Calculate the inverse price for AntiBTC using inverse proportion
+     * antiPrice = K / btcPrice
+     * 例如：当 BTC = $20,000 时，AntiBTC = $1/$20,000 = $0.00005
+     *      当 BTC = $10,000 时，AntiBTC = $1/$10,000 = $0.0001
      */
     function calculateAntiPrice(uint256 btcPrice) internal pure returns (uint256) {
-        if (btcPrice >= 2 * INITIAL_PRICE) {
-            return 0;
-        }
-        return (2 * INITIAL_PRICE).sub(btcPrice);
+        require(btcPrice > 0, "BTC price cannot be zero");
+        // 使用 K/btcPrice 计算反比例价格，保持8位小数精度
+        return K.mul(PRICE_PRECISION).div(btcPrice);
     }
 
     /**

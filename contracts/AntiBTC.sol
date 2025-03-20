@@ -6,7 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IPriceOracle.sol";
+import "./interfaces/IPriceFeed.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/PriceCalculator.sol";
 
@@ -14,7 +16,7 @@ import "./libraries/PriceCalculator.sol";
  * @title AntiBTC
  * @dev Implementation of the AntiBTC token with AMM functionality
  */
-contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
+contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompatible {
     using SafeMath for uint256;
     using PriceCalculator for uint256;
 
@@ -35,17 +37,38 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     uint256 public poolTokens;
     uint256 public poolUSDT;
 
+    // Price related
+    IPriceFeed public priceFeed;
+    uint256 public lastRebalancePrice;  // 上次再平衡时的BTC价格
+    uint256 public lastRebalanceTime;   // 上次再平衡的时间
+    uint256 public constant REBALANCE_INTERVAL = 8 hours;  // 再平衡时间间隔改为8小时
+    uint256 public constant REBALANCE_THRESHOLD = 5e6;      // 5% 价格变化阈值 (1e8 = 100%)
+
     // Events
     event Swap(address indexed user, bool isBuy, uint256 tokenAmount, uint256 usdtAmount);
     event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 usdtAmount);
     event LiquidityRemoved(address indexed provider, uint256 tokenAmount, uint256 usdtAmount);
     event PriceUpdated(uint256 btcPrice, uint256 antibtcPrice);
+    event Rebalanced(
+        uint256 oldBtcPrice,
+        uint256 newBtcPrice,
+        uint256 oldAntiPrice,
+        uint256 newAntiPrice,
+        uint256 timestamp
+    );
 
-    constructor(address _priceOracle, address _usdt) ERC20("AntiBTC", "aBTC") {
+    constructor(
+        string memory name,
+        string memory symbol,
+        address _priceOracle,
+        address _usdt,
+        address _priceFeed
+    ) ERC20(name, symbol) {
         require(_priceOracle != address(0), "Invalid oracle address");
         require(_usdt != address(0), "Invalid USDT address");
         priceOracle = IPriceOracle(_priceOracle);
         usdt = IERC20(_usdt);
+        priceFeed = IPriceFeed(_priceFeed);
         
         // Initialize pool with initial liquidity
         poolTokens = INITIAL_POOL_TOKENS;
@@ -57,6 +80,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
         require(btcPrice > 0 && timestamp > 0, "Invalid initial price");
         lastBTCPrice = btcPrice;
         lastUpdateTime = timestamp;
+        lastRebalancePrice = btcPrice;
+        lastRebalanceTime = block.timestamp;
     }
 
     /**
@@ -211,5 +236,173 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
      */
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    /**
+     * @dev 检查是否需要再平衡
+     * 当满足以下任一条件时触发再平衡：
+     * 1. 距离上次再平衡超过24小时
+     * 2. BTC价格相对于上次再平衡时变化超过5%
+     */
+    function needsRebalance() public view returns (bool) {
+        uint256 currentPrice = priceFeed.getPrice();
+        uint256 timeSinceLastRebalance = block.timestamp - lastRebalanceTime;
+        
+        // 计算价格变化百分比
+        uint256 priceChange;
+        if (currentPrice > lastRebalancePrice) {
+            priceChange = currentPrice.sub(lastRebalancePrice).mul(1e8).div(lastRebalancePrice);
+        } else {
+            priceChange = lastRebalancePrice.sub(currentPrice).mul(1e8).div(lastRebalancePrice);
+        }
+        
+        return (timeSinceLastRebalance >= REBALANCE_INTERVAL) || 
+               (priceChange >= REBALANCE_THRESHOLD);
+    }
+
+    /**
+     * @dev Chainlink Automation 检查函数
+     * 当需要再平衡时返回 true
+     */
+    function checkUpkeep(bytes calldata /* checkData */) 
+        external 
+        view 
+        override 
+        returns (bool upkeepNeeded, bytes memory /* performData */) 
+    {
+        upkeepNeeded = needsRebalance();
+        return (upkeepNeeded, "");
+    }
+
+    /**
+     * @dev Chainlink Automation 执行函数
+     * 只能被 Chainlink Automation Registry 调用
+     */
+    function performUpkeep(bytes calldata /* performData */) external override {
+        require(needsRebalance(), "Rebalance conditions not met");
+        _rebalance();  // 内部再平衡函数
+    }
+
+    /**
+     * @dev 内部再平衡函数
+     */
+    function _rebalance() internal {
+        uint256 oldBtcPrice = lastRebalancePrice;
+        uint256 newBtcPrice = priceFeed.getPrice();
+        
+        uint256 oldAntiPrice = PriceCalculator.calculateAntiPrice(oldBtcPrice);
+        uint256 newAntiPrice = PriceCalculator.calculateAntiPrice(newBtcPrice);
+        
+        // 更新状态
+        lastBTCPrice = newBtcPrice;  // 同时更新 lastBTCPrice
+        lastRebalancePrice = newBtcPrice;
+        lastRebalanceTime = block.timestamp;
+        lastUpdateTime = block.timestamp;  // 同时更新 lastUpdateTime
+        
+        emit Rebalanced(
+            oldBtcPrice,
+            newBtcPrice,
+            oldAntiPrice,
+            newAntiPrice,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @dev 获取合约中托管的所有资产信息
+     * @return _poolTokens 池中的AntiBTC代币数量
+     * @return _poolUSDT 池中的USDT数量
+     * @return _totalSupply AntiBTC的总供应量
+     * @return _lastBTCPrice 最新的BTC价格
+     * @return _lastAntiPrice 最新的AntiBTC价格
+     * @return _lastRebalanceTime 上次再平衡时间
+     */
+    function getPoolInfo() external view returns (
+        uint256 _poolTokens,
+        uint256 _poolUSDT,
+        uint256 _totalSupply,
+        uint256 _lastBTCPrice,
+        uint256 _lastAntiPrice,
+        uint256 _lastRebalanceTime
+    ) {
+        return (
+            poolTokens,
+            poolUSDT,
+            totalSupply(),
+            lastBTCPrice,
+            calculateAntiPrice(lastBTCPrice),
+            lastRebalanceTime
+        );
+    }
+
+    /**
+     * @dev 获取用户在池中的份额信息
+     * @param user 用户地址
+     * @return _tokenBalance 用户持有的AntiBTC数量
+     * @return _tokenShare 用户占总供应量的百分比（精度为1e8，即100% = 1e8）
+     * @return _usdtValue 按当前池价格计算的USDT价值
+     */
+    function getUserShare(address user) external view returns (
+        uint256 _tokenBalance,
+        uint256 _tokenShare,
+        uint256 _usdtValue
+    ) {
+        uint256 balance = balanceOf(user);
+        uint256 total = totalSupply();
+        
+        // 计算用户份额百分比
+        uint256 share = total > 0 ? balance.mul(1e8).div(total) : 0;
+        
+        // 计算用户份额的USDT价值
+        uint256 usdtValue = balance > 0 ? balance.mul(poolUSDT).div(poolTokens) : 0;
+        
+        return (balance, share, usdtValue);
+    }
+
+    /**
+     * @dev 获取当前池子的价格信息
+     * @return _btcPrice 当前BTC价格
+     * @return _antiPrice 当前AntiBTC价格
+     * @return _poolPrice 池子中的AntiBTC/USDT价格（1个AntiBTC值多少USDT）
+     */
+    function getPriceInfo() external view returns (
+        uint256 _btcPrice,
+        uint256 _antiPrice,
+        uint256 _poolPrice
+    ) {
+        uint256 antiPrice = calculateAntiPrice(lastBTCPrice);
+        uint256 poolPrice = poolTokens > 0 ? poolUSDT.mul(1e18).div(poolTokens) : 0;  // 1e18是为了保持精度
+        
+        return (lastBTCPrice, antiPrice, poolPrice);
+    }
+
+    /**
+     * @dev 获取再平衡状态信息
+     * @return _needsRebalance 是否需要再平衡
+     * @return _timeSinceLastRebalance 距离上次再平衡的时间（秒）
+     * @return _priceChangePercentage 价格变化百分比（精度为1e8）
+     */
+    function getRebalanceInfo() external view returns (
+        bool _needsRebalance,
+        uint256 _timeSinceLastRebalance,
+        uint256 _priceChangePercentage
+    ) {
+        uint256 currentPrice = priceFeed.getPrice();
+        uint256 timeSinceLastRebalance = block.timestamp - lastRebalanceTime;
+        
+        uint256 priceChange;
+        if (currentPrice > lastRebalancePrice) {
+            priceChange = currentPrice.sub(lastRebalancePrice).mul(1e8).div(lastRebalancePrice);
+        } else {
+            priceChange = lastRebalancePrice.sub(currentPrice).mul(1e8).div(lastRebalancePrice);
+        }
+        
+        return (needsRebalance(), timeSinceLastRebalance, priceChange);
+    }
+
+    // 修改原来的 rebalance 函数为手动触发
+    function manualRebalance() external nonReentrant {
+        require(needsRebalance(), "Rebalance conditions not met");
+        _rebalance();
     }
 } 

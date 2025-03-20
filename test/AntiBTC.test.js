@@ -8,6 +8,8 @@ describe("AntiBTC", function () {
   let mockOracle;
   let MockUSDT;
   let mockUSDT;
+  let MockPriceFeed;
+  let mockPriceFeed;
   let owner;
   let user1;
   let user2;
@@ -35,10 +37,21 @@ describe("AntiBTC", function () {
     MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
     mockOracle = await MockBTCOracle.deploy(initialBTCPrice);
     await mockOracle.deployed();
+
+    // 部署模拟 Price Feed
+    MockPriceFeed = await ethers.getContractFactory("MockPriceFeed");
+    mockPriceFeed = await MockPriceFeed.deploy(initialBTCPrice);
+    await mockPriceFeed.deployed();
     
     // 部署 AntiBTC 合约
     AntiBTC = await ethers.getContractFactory("AntiBTC");
-    antiBTC = await AntiBTC.deploy(mockOracle.address, mockUSDT.address);
+    antiBTC = await AntiBTC.deploy(
+      "AntiBTC",
+      "aBTC",
+      mockOracle.address,
+      mockUSDT.address,
+      mockPriceFeed.address
+    );
     await antiBTC.deployed();
   });
   
@@ -64,16 +77,19 @@ describe("AntiBTC", function () {
       // 当 BTC 价格为 $20,000 时
       const antiPrice = await antiBTC.calculateAntiPrice(initialBTCPrice);
       
-      // 由于 BTC 价格 $20,000 > 2 * INITIAL_PRICE($1)，所以结果为 0
-      expect(antiPrice).to.equal(0);
+      // K = 1e8, btcPrice = 20000e8
+      // antiPrice = K * 1e8 / btcPrice = 1e8 * 1e8 / 20000e8 = 5000 (0.00005 USD)
+      const expectedAntiPrice = ethers.utils.parseUnits("0.00005", 8);
+      expect(antiPrice).to.equal(expectedAntiPrice);
       
-      // 测试较低的 BTC 价格，这个价格应该在有效范围内
-      const lowerBTCPrice = ethers.utils.parseUnits("1", 8); // $1
+      // 测试较低的 BTC 价格
+      const lowerBTCPrice = ethers.utils.parseUnits("10000", 8); // $10,000
       const antiPriceLower = await antiBTC.calculateAntiPrice(lowerBTCPrice);
       
-      // 预期的反向价格：(2 * 1) - 1 = 1
-      const expectedAntiPrice = ethers.utils.parseUnits("1", 8);
-      expect(antiPriceLower).to.equal(expectedAntiPrice);
+      // K = 1e8, btcPrice = 10000e8
+      // antiPrice = K * 1e8 / btcPrice = 1e8 * 1e8 / 10000e8 = 10000 (0.0001 USD)
+      const expectedAntiPriceLower = ethers.utils.parseUnits("0.0001", 8);
+      expect(antiPriceLower).to.equal(expectedAntiPriceLower);
     });
     
     it("应该正确计算 AMM 交换金额", async function () {
@@ -208,6 +224,87 @@ describe("AntiBTC", function () {
       
       // 检查价格是否更新
       expect(await antiBTC.lastBTCPrice()).to.equal(newBTCPrice);
+    });
+  });
+
+  describe("再平衡机制", function () {
+    it("应该正确检测是否需要再平衡", async function () {
+      // 初始状态不需要再平衡
+      const initialRebalanceInfo = await antiBTC.getRebalanceInfo();
+      expect(initialRebalanceInfo._needsRebalance).to.be.false;
+
+      // 模拟时间经过8小时
+      await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]); // 8小时
+      await ethers.provider.send("evm_mine");
+
+      // 现在应该需要再平衡了
+      const afterTimeRebalanceInfo = await antiBTC.getRebalanceInfo();
+      expect(afterTimeRebalanceInfo._needsRebalance).to.be.true;
+      expect(afterTimeRebalanceInfo._timeSinceLastRebalance).to.be.gte(8 * 60 * 60);
+    });
+
+    it("应该在价格变化超过5%时触发再平衡", async function () {
+      // 更新价格，涨幅6%
+      const newPrice = initialBTCPrice.mul(106).div(100); // 增加6%
+      await mockPriceFeed.updatePrice(newPrice);
+
+      // 检查是否需要再平衡
+      const rebalanceInfo = await antiBTC.getRebalanceInfo();
+      expect(rebalanceInfo._needsRebalance).to.be.true;
+      expect(rebalanceInfo._priceChangePercentage).to.be.gte(ethers.utils.parseUnits("5", 6)); // 5%
+    });
+
+    it("应该能成功执行再平衡", async function () {
+      // 记录初始状态
+      const initialRebalanceTime = await antiBTC.lastRebalanceTime();
+      const initialBtcPrice = await antiBTC.lastBTCPrice();
+
+      // 更新价格并等待8小时
+      const newPrice = initialBTCPrice.mul(106).div(100); // 增加6%
+      await mockPriceFeed.updatePrice(newPrice);
+      await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]);
+      await ethers.provider.send("evm_mine");
+
+      // 执行再平衡
+      const tx = await antiBTC.manualRebalance();
+      const receipt = await tx.wait();
+
+      // 验证事件
+      const rebalanceEvent = receipt.events.find(e => e.event === "Rebalanced");
+      expect(rebalanceEvent).to.not.be.undefined;
+      
+      // 验证状态更新
+      const newRebalanceTime = await antiBTC.lastRebalanceTime();
+      expect(newRebalanceTime).to.be.gt(initialRebalanceTime);
+      
+      // 验证价格更新
+      const updatedBtcPrice = await antiBTC.lastBTCPrice();
+      expect(updatedBtcPrice).to.equal(newPrice);
+
+      // 验证再平衡后不再需要再平衡
+      const afterRebalanceInfo = await antiBTC.getRebalanceInfo();
+      expect(afterRebalanceInfo._needsRebalance).to.be.false;
+      expect(afterRebalanceInfo._priceChangePercentage).to.equal(0); // 价格变化百分比应该重置为0
+    });
+
+    it("不应在时间间隔不足时执行再平衡", async function () {
+      // 等待4小时（不足8小时）
+      await ethers.provider.send("evm_increaseTime", [4 * 60 * 60]);
+      await ethers.provider.send("evm_mine");
+
+      // 尝试执行再平衡，应该失败
+      await expect(antiBTC.manualRebalance())
+        .to.be.revertedWith("Rebalance conditions not met");
+    });
+
+    it("不应在价格变化不足时执行再平衡", async function () {
+      // 更新价格，涨幅3%（不足5%）
+      const newPrice = initialBTCPrice.mul(103).div(100);
+      await mockPriceFeed.updatePrice(newPrice);
+
+      // 尝试执行再平衡，应该失败
+      await expect(antiBTC.manualRebalance())
+        .to.be.revertedWith("Rebalance conditions not met");
     });
   });
 }); 
