@@ -2,6 +2,60 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("AntiBTC", function () {
+  before(async function() {
+    // 检查当前网络
+    const network = await ethers.provider.getNetwork();
+    console.log("\n=== 网络信息 ===");
+    console.log("Chain ID:", network.chainId);
+    console.log("网络名称:", network.name);
+    
+    // 获取测试账户信息
+    const [owner] = await ethers.getSigners();
+    console.log("\n=== 账户信息 ===");
+    console.log("测试账户地址:", owner.address);
+    const balance = await owner.getBalance();
+    console.log("账户余额:", ethers.utils.formatEther(balance), 
+      network.chainId === 97 ? "BNB" : "ETH");
+    console.log("==================\n");
+  });
+
+  describe("网络环境", function () {
+    it("应该在 BSC 测试网环境中运行", async function () {
+      const network = await ethers.provider.getNetwork();
+      expect(network.chainId).to.equal(97, "Chain ID 应该是 97 (BSC 测试网)");
+      expect(network.name).to.equal("bnbt", "网络名称应该是 bnbt");
+      
+      const [owner] = await ethers.getSigners();
+      const balance = await owner.getBalance();
+      const balanceInBNB = parseFloat(ethers.utils.formatEther(balance));
+      expect(balanceInBNB).to.be.closeTo(10000, 1, "初始余额应该接近 10000 BNB");
+    });
+
+    it("应该显示合约部署的 gas 消耗", async function () {
+      const [owner] = await ethers.getSigners();
+      const initialBalance = await owner.getBalance();
+      
+      // 部署合约
+      const MockUSDT = await ethers.getContractFactory("MockERC20");
+      const mockUSDT = await MockUSDT.deploy("Mock USDT", "USDT", 6);
+      await mockUSDT.deployed();
+      
+      const MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
+      const mockOracle = await MockBTCOracle.deploy(ethers.utils.parseUnits("20000", 8));
+      await mockOracle.deployed();
+      
+      const finalBalance = await owner.getBalance();
+      const gasUsed = ethers.utils.formatEther(initialBalance.sub(finalBalance));
+      
+      console.log("\n=== Gas 消耗信息 ===");
+      console.log("部署两个合约消耗的 BNB:", gasUsed);
+      console.log("==================\n");
+      
+      // 验证 gas 消耗在合理范围内
+      expect(parseFloat(gasUsed)).to.be.lt(0.1, "单次部署的 gas 消耗应该小于 0.1 BNB");
+    });
+  });
+
   let AntiBTC;
   let antiBTC;
   let MockBTCOracle;
