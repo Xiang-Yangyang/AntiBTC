@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "./SafeMath.sol";
-
 /**
  * @title PriceCalculator
  * @dev Library for calculating AntiBTC prices and AMM operations
  */
 library PriceCalculator {
-    using SafeMath for uint256;
-
     uint256 constant PRICE_PRECISION = 1e8;  // 8 decimals for price
     uint256 constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
     uint256 constant K = 1e8;               // K = 1 USD * BTC (反比例常数)
@@ -23,7 +19,7 @@ library PriceCalculator {
     function calculateAntiPrice(uint256 btcPrice) internal pure returns (uint256) {
         require(btcPrice > 0, "BTC price cannot be zero");
         // 使用 K/btcPrice 计算反比例价格，保持8位小数精度
-        return K.mul(PRICE_PRECISION).div(btcPrice);
+        return (K * PRICE_PRECISION) / btcPrice;
     }
 
     /**
@@ -34,7 +30,7 @@ library PriceCalculator {
         uint256 poolTokens,
         uint256 poolUSDT
     ) internal pure returns (uint256) {
-        return poolTokens.mul(usdtIn).div(poolUSDT.add(usdtIn));
+        return (poolTokens * usdtIn) / (poolUSDT + usdtIn);
     }
 
     /**
@@ -45,7 +41,7 @@ library PriceCalculator {
         uint256 poolTokens,
         uint256 poolUSDT
     ) internal pure returns (uint256) {
-        return poolUSDT.mul(tokensIn).div(poolTokens.add(tokensIn));
+        return (poolUSDT * tokensIn) / (poolTokens + tokensIn);
     }
 
     /**
@@ -56,7 +52,7 @@ library PriceCalculator {
         uint256 poolTokens,
         uint256 poolUSDT
     ) internal pure returns (uint256) {
-        return usdtAmount.mul(poolTokens).div(poolUSDT);
+        return (usdtAmount * poolTokens) / poolUSDT;
     }
 
     /**
@@ -68,9 +64,9 @@ library PriceCalculator {
         uint256 expectedPrice,
         uint256 maxSlippage
     ) internal pure returns (bool) {
-        uint256 actualPrice = outputAmount.mul(PRICE_PRECISION).div(inputAmount);
-        uint256 minAcceptablePrice = expectedPrice.mul(PRICE_PRECISION.sub(maxSlippage)).div(PRICE_PRECISION);
-        uint256 maxAcceptablePrice = expectedPrice.mul(PRICE_PRECISION.add(maxSlippage)).div(PRICE_PRECISION);
+        uint256 actualPrice = (outputAmount * PRICE_PRECISION) / inputAmount;
+        uint256 minAcceptablePrice = (expectedPrice * (PRICE_PRECISION - maxSlippage)) / PRICE_PRECISION;
+        uint256 maxAcceptablePrice = (expectedPrice * (PRICE_PRECISION + maxSlippage)) / PRICE_PRECISION;
         
         return actualPrice >= minAcceptablePrice && actualPrice <= maxAcceptablePrice;
     }

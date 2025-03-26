@@ -8,8 +8,6 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import "./interfaces/IPriceOracle.sol";
-import "./interfaces/IPriceFeed.sol";
-import "./libraries/SafeMath.sol";
 import "./libraries/PriceCalculator.sol";
 
 /**
@@ -17,19 +15,16 @@ import "./libraries/PriceCalculator.sol";
  * @dev Implementation of the AntiBTC token with AMM functionality
  */
 contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompatible {
-    using SafeMath for uint256;
-    using PriceCalculator for uint256;
-
     // Constants
     uint256 public constant PRICE_PRECISION = 1e8;  // 8 decimals for price
     uint256 public constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
     uint256 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
 
     // State variables
-    IPriceOracle public priceOracle;
+    IPriceOracle public priceOracle;  // 价格预言机接口
     IERC20 public usdt;  // USDT contract
     uint256 public lastBTCPrice;
-    uint256 public lastUpdateTime;
+    uint256 public lastPriceUpdateTime;
     
     // Pool variables
     uint256 public constant INITIAL_POOL_TOKENS = 1000000 * 1e18;  // 1M tokens
@@ -38,9 +33,6 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     uint256 public poolUSDT;
 
     // Price related
-    IPriceFeed public priceFeed;
-    uint256 public lastRebalancePrice;  // 上次再平衡时的BTC价格
-    uint256 public lastRebalanceTime;   // 上次再平衡的时间
     uint256 public constant REBALANCE_INTERVAL = 8 hours;  // 再平衡时间间隔改为8小时
     uint256 public constant REBALANCE_THRESHOLD = 5e6;      // 5% 价格变化阈值 (1e8 = 100%)
 
@@ -61,14 +53,12 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         string memory name,
         string memory symbol,
         address _priceOracle,
-        address _usdt,
-        address _priceFeed
+        address _usdt
     ) ERC20(name, symbol) {
         require(_priceOracle != address(0), "Invalid oracle address");
         require(_usdt != address(0), "Invalid USDT address");
         priceOracle = IPriceOracle(_priceOracle);
         usdt = IERC20(_usdt);
-        priceFeed = IPriceFeed(_priceFeed);
         
         // Initialize pool with initial liquidity
         poolTokens = INITIAL_POOL_TOKENS;
@@ -76,30 +66,27 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         _mint(address(this), INITIAL_POOL_TOKENS);
         
         // Get initial BTC price
-        (uint256 btcPrice, uint256 timestamp) = priceOracle.getBTCPrice();
-        require(btcPrice > 0 && timestamp > 0, "Invalid initial price");
-        lastBTCPrice = btcPrice;
-        lastUpdateTime = timestamp;
-        lastRebalancePrice = btcPrice;
-        lastRebalanceTime = block.timestamp;
+        uint256 initialPrice = priceOracle.getPrice();
+        require(initialPrice > 0, "Invalid initial price");
+        lastBTCPrice = initialPrice;
+        lastPriceUpdateTime = block.timestamp;
     }
 
     /**
      * @dev Updates the BTC price from the oracle
      */
     function updatePrice() public {
-        (uint256 newBTCPrice, uint256 timestamp) = priceOracle.getBTCPrice();
-        // 在测试环境中，我们允许使用相同的时间戳
-        require(newBTCPrice > 0, "Invalid price data");
+        uint256 newPrice = priceOracle.getPrice();
+        require(newPrice > 0, "Invalid price data");
         
-        // 只有在时间戳更新或者是第一次调用时才更新价格
-        if (timestamp > lastUpdateTime || lastUpdateTime == 0) {
-            lastBTCPrice = newBTCPrice;
-            lastUpdateTime = timestamp;
+        // 只在价格变化时更新
+        if (newPrice != lastBTCPrice) {
+            lastBTCPrice = newPrice;
+            lastPriceUpdateTime = block.timestamp;
             
             // Calculate and emit new AntiBTC price
-            uint256 antibtcPrice = calculateAntiPrice(newBTCPrice);
-            emit PriceUpdated(newBTCPrice, antibtcPrice);
+            uint256 antibtcPrice = calculateAntiPrice(newPrice);
+            emit PriceUpdated(newPrice, antibtcPrice);
         }
     }
 
@@ -245,18 +232,18 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
      * 2. BTC价格相对于上次再平衡时变化超过5%
      */
     function needsRebalance() public view returns (bool) {
-        uint256 currentPrice = priceFeed.getPrice();
-        uint256 timeSinceLastRebalance = block.timestamp - lastRebalanceTime;
+        uint256 currentPrice = priceOracle.getPrice();
+        uint256 timeSinceLastUpdate = block.timestamp - lastPriceUpdateTime;  // 使用统一的时间变量
         
         // 计算价格变化百分比
         uint256 priceChange;
-        if (currentPrice > lastRebalancePrice) {
-            priceChange = currentPrice.sub(lastRebalancePrice).mul(1e8).div(lastRebalancePrice);
+        if (currentPrice > lastBTCPrice) {
+            priceChange = ((currentPrice - lastBTCPrice) * 1e8) / lastBTCPrice;
         } else {
-            priceChange = lastRebalancePrice.sub(currentPrice).mul(1e8).div(lastRebalancePrice);
+            priceChange = ((lastBTCPrice - currentPrice) * 1e8) / lastBTCPrice;
         }
         
-        return (timeSinceLastRebalance >= REBALANCE_INTERVAL) || 
+        return (timeSinceLastUpdate >= REBALANCE_INTERVAL) || 
                (priceChange >= REBALANCE_THRESHOLD);
     }
 
@@ -287,17 +274,15 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
      * @dev 内部再平衡函数
      */
     function _rebalance() internal {
-        uint256 oldBtcPrice = lastRebalancePrice;
-        uint256 newBtcPrice = priceFeed.getPrice();
+        uint256 oldBtcPrice = lastBTCPrice;
+        uint256 newBtcPrice = priceOracle.getPrice();
         
         uint256 oldAntiPrice = PriceCalculator.calculateAntiPrice(oldBtcPrice);
         uint256 newAntiPrice = PriceCalculator.calculateAntiPrice(newBtcPrice);
         
         // 更新状态
-        lastBTCPrice = newBtcPrice;  // 同时更新 lastBTCPrice
-        lastRebalancePrice = newBtcPrice;
-        lastRebalanceTime = block.timestamp;
-        lastUpdateTime = block.timestamp;  // 同时更新 lastUpdateTime
+        lastBTCPrice = newBtcPrice;
+        lastPriceUpdateTime = block.timestamp;  // 使用统一的时间变量
         
         emit Rebalanced(
             oldBtcPrice,
@@ -315,7 +300,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
      * @return _totalSupply AntiBTC的总供应量
      * @return _lastBTCPrice 最新的BTC价格
      * @return _lastAntiPrice 最新的AntiBTC价格
-     * @return _lastRebalanceTime 上次再平衡时间
+     * @return _lastPriceUpdateTime 上次再平衡时间
      */
     function getPoolInfo() external view returns (
         uint256 _poolTokens,
@@ -323,7 +308,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _totalSupply,
         uint256 _lastBTCPrice,
         uint256 _lastAntiPrice,
-        uint256 _lastRebalanceTime
+        uint256 _lastPriceUpdateTime
     ) {
         return (
             poolTokens,
@@ -331,7 +316,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             totalSupply(),
             lastBTCPrice,
             calculateAntiPrice(lastBTCPrice),
-            lastRebalanceTime
+            lastPriceUpdateTime
         );
     }
 
@@ -351,10 +336,10 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 total = totalSupply();
         
         // 计算用户份额百分比
-        uint256 share = total > 0 ? balance.mul(1e8).div(total) : 0;
+        uint256 share = total > 0 ? (balance * 1e8) / total : 0;
         
-        // 计算用户份额的USDT价值
-        uint256 usdtValue = balance > 0 ? balance.mul(poolUSDT).div(poolTokens) : 0;
+        // 计算用户的USDT价值
+        uint256 usdtValue = balance > 0 ? (balance * poolUSDT) / poolTokens : 0;
         
         return (balance, share, usdtValue);
     }
@@ -371,7 +356,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _poolPrice
     ) {
         uint256 antiPrice = calculateAntiPrice(lastBTCPrice);
-        uint256 poolPrice = poolTokens > 0 ? poolUSDT.mul(1e18).div(poolTokens) : 0;  // 1e18是为了保持精度
+        uint256 poolPrice = poolTokens > 0 ? (poolUSDT * 1e18) / poolTokens : 0;  // 1e18是为了保持精度
         
         return (lastBTCPrice, antiPrice, poolPrice);
     }
@@ -387,17 +372,17 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _timeSinceLastRebalance,
         uint256 _priceChangePercentage
     ) {
-        uint256 currentPrice = priceFeed.getPrice();
-        uint256 timeSinceLastRebalance = block.timestamp - lastRebalanceTime;
+        uint256 currentPrice = priceOracle.getPrice();
+        uint256 timeSinceLastUpdate = block.timestamp - lastPriceUpdateTime;  // 使用统一的时间变量
         
         uint256 priceChange;
-        if (currentPrice > lastRebalancePrice) {
-            priceChange = currentPrice.sub(lastRebalancePrice).mul(1e8).div(lastRebalancePrice);
+        if (currentPrice > lastBTCPrice) {
+            priceChange = ((currentPrice - lastBTCPrice) * 1e8) / lastBTCPrice;
         } else {
-            priceChange = lastRebalancePrice.sub(currentPrice).mul(1e8).div(lastRebalancePrice);
+            priceChange = ((lastBTCPrice - currentPrice) * 1e8) / lastBTCPrice;
         }
         
-        return (needsRebalance(), timeSinceLastRebalance, priceChange);
+        return (needsRebalance(), timeSinceLastUpdate, priceChange);
     }
 
     // 修改原来的 rebalance 函数为手动触发

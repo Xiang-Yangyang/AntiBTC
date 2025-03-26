@@ -5,12 +5,11 @@ interface IPriceOracle {
     /**
      * @dev Returns the latest BTC/USD price
      * @return price The current BTC price in USD with 8 decimals
-     * @return timestamp The timestamp of the last price update
      */
-    function getBTCPrice() external view returns (uint256 price, uint256 timestamp);
+    function getPrice() external view returns (uint256 price);
 
     /**
      * @dev Event emitted when the price is updated
      */
-    event PriceUpdated(uint256 price, uint256 timestamp);
+    event PriceUpdated(uint256 price);
 } 

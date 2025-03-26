@@ -62,8 +62,6 @@ describe("AntiBTC", function () {
   let mockOracle;
   let MockUSDT;
   let mockUSDT;
-  let MockPriceFeed;
-  let mockPriceFeed;
   let owner;
   let user1;
   let user2;
@@ -91,11 +89,6 @@ describe("AntiBTC", function () {
     MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
     mockOracle = await MockBTCOracle.deploy(initialBTCPrice);
     await mockOracle.deployed();
-
-    // 部署模拟 Price Feed
-    MockPriceFeed = await ethers.getContractFactory("MockPriceFeed");
-    mockPriceFeed = await MockPriceFeed.deploy(initialBTCPrice);
-    await mockPriceFeed.deployed();
     
     // 部署 AntiBTC 合约
     AntiBTC = await ethers.getContractFactory("AntiBTC");
@@ -103,8 +96,7 @@ describe("AntiBTC", function () {
       "AntiBTC",
       "aBTC",
       mockOracle.address,
-      mockUSDT.address,
-      mockPriceFeed.address
+      mockUSDT.address
     );
     await antiBTC.deployed();
   });
@@ -300,7 +292,7 @@ describe("AntiBTC", function () {
     it("应该在价格变化超过5%时触发再平衡", async function () {
       // 更新价格，涨幅6%
       const newPrice = initialBTCPrice.mul(106).div(100); // 增加6%
-      await mockPriceFeed.updatePrice(newPrice);
+      await mockOracle.updatePrice(newPrice);
 
       // 检查是否需要再平衡
       const rebalanceInfo = await antiBTC.getRebalanceInfo();
@@ -310,12 +302,12 @@ describe("AntiBTC", function () {
 
     it("应该能成功执行再平衡", async function () {
       // 记录初始状态
-      const initialRebalanceTime = await antiBTC.lastRebalanceTime();
+      const initialUpdateTime = await antiBTC.lastPriceUpdateTime();
       const initialBtcPrice = await antiBTC.lastBTCPrice();
 
       // 更新价格并等待8小时
-      const newPrice = initialBTCPrice.mul(106).div(100); // 增加6%
-      await mockPriceFeed.updatePrice(newPrice);
+      const newPrice = initialBtcPrice.mul(106).div(100); // 增加6%
+      await mockOracle.updatePrice(newPrice);
       await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]);
       await ethers.provider.send("evm_mine");
 
@@ -328,8 +320,8 @@ describe("AntiBTC", function () {
       expect(rebalanceEvent).to.not.be.undefined;
       
       // 验证状态更新
-      const newRebalanceTime = await antiBTC.lastRebalanceTime();
-      expect(newRebalanceTime).to.be.gt(initialRebalanceTime);
+      const newUpdateTime = await antiBTC.lastPriceUpdateTime();
+      expect(newUpdateTime).to.be.gt(initialUpdateTime);
       
       // 验证价格更新
       const updatedBtcPrice = await antiBTC.lastBTCPrice();
@@ -354,7 +346,7 @@ describe("AntiBTC", function () {
     it("不应在价格变化不足时执行再平衡", async function () {
       // 更新价格，涨幅3%（不足5%）
       const newPrice = initialBTCPrice.mul(103).div(100);
-      await mockPriceFeed.updatePrice(newPrice);
+      await mockOracle.updatePrice(newPrice);
 
       // 尝试执行再平衡，应该失败
       await expect(antiBTC.manualRebalance())
