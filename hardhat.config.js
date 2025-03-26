@@ -1,5 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-ethers");
+require("hardhat-gas-reporter");
 
 // 通用配置
 const commonConfig = {
@@ -11,6 +12,12 @@ const commonConfig = {
         runs: 200
       }
     }
+  },
+  gasReporter: {
+    enabled: true,
+    currency: 'USD',
+    gasPrice: 10,
+    coinmarketcap: process.env.COINMARKETCAP_API_KEY,
   },
   networks: {
     // 本地节点配置

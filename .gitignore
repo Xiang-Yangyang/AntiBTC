@@ -1,3 +1,7 @@
+# project documents
+ProjectDocument/
+
+# environment variables
 .env
 
 # MAC OS
