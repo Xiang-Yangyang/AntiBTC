@@ -187,17 +187,14 @@ cython_debug/
 node_modules
 
 # Hardhat
-artifacts/
 cache/
-coverage/
-coverage.json
+artifacts/
 
 # Node.js
 node_modules/
 npm-debug.log
-yarn-debug.log
 yarn-error.log
-.env
+yarn-debug.log
 
 # Solidity
 typechain/
@@ -237,3 +234,23 @@ gas-report.txt
 
 # 缓存目录
 .hardhat/
+
+# IDE/编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 覆盖率报告
+coverage/
+coverage.json
+
+# 类型文件
+typechain/
+typechain-types/
+
+# 环境变量
+.env
+
+# 部署文件
+deployed-addresses.json

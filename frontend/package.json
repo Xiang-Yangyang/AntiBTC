@@ -1,0 +1,14 @@
+{
+  "name": "antibtc-frontend",
+  "version": "1.0.0",
+  "description": "AntiBTC 前端界面",
+  "main": "index.js",
+  "scripts": {
+    "start": "serve .",
+    "build": "echo 'No build needed for this project'"
+  },
+  "dependencies": {
+    "serve": "^14.0.0"
+  },
+  "devDependencies": {}
+} 

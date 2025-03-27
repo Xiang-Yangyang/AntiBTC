@@ -3,47 +3,92 @@ const fs = require("fs");
 require('dotenv').config();
 
 async function main() {
-  console.log("\n=== BSC 主网环境 ===");
-  console.log("Chain ID:", 56);
-  console.log("网络:", "BSC Mainnet");
-  console.log("货币:", "BNB");
-
-  // 获取账户
-  const [deployer] = await hre.ethers.getSigners();
-  console.log("\n部署账户:", deployer.address);
-  console.log("账户余额:", hre.ethers.utils.formatEther(await deployer.getBalance()), "BNB");
-
-  // 检查账户余额
-  const balance = await deployer.getBalance();
-  if (balance.lt(hre.ethers.utils.parseEther("0.1"))) {
-    throw new Error("账户余额不足，请确保有足够的 BNB 支付 gas 费用");
-  }
-
-  // 部署合约
-  console.log("\n开始部署合约...");
-
+  // 获取环境变量
+  const initialBTCPrice = process.env.INITIAL_BTC_PRICE || "2000000000000";
+  
+  console.log("部署到 BSC 网络...");
+  console.log("初始 BTC 价格:", ethers.utils.formatUnits(initialBTCPrice, 8), "USD");
+  
+  // 获取部署者账户
+  const [deployer] = await ethers.getSigners();
+  
+  console.log(
+    "使用账户地址:",
+    deployer.address
+  );
+  
+  console.log("账户余额:", (await deployer.getBalance()).toString());
+  
+  // 部署 MockUSDT
+  const MockUSDT = await ethers.getContractFactory("MockERC20");
+  const usdt = await MockUSDT.deploy("Mock USDT", "USDT", 6);
+  await usdt.deployed();
+  console.log("MockUSDT 已部署到:", usdt.address);
+  
+  // 部署 MockBTCOracle
+  const MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
+  const oracle = await MockBTCOracle.deploy(initialBTCPrice);
+  await oracle.deployed();
+  console.log("MockBTCOracle 已部署到:", oracle.address);
+  
   // 部署 AntiBTC
-  const AntiBTC = await hre.ethers.getContractFactory("AntiBTC");
+  const AntiBTC = await ethers.getContractFactory("AntiBTC");
   const antiBTC = await AntiBTC.deploy(
     "AntiBTC",
     "aBTC",
-    process.env.BTC_ORACLE_ADDRESS, // BSC 主网 BTC 预言机地址
-    process.env.USDT_ADDRESS,       // BSC 主网 USDT 地址
-    process.env.PRICE_FEED_ADDRESS  // BSC 主网价格预言机地址
+    oracle.address,
+    usdt.address
   );
   await antiBTC.deployed();
   console.log("AntiBTC 已部署到:", antiBTC.address);
-
+  
+  // 铸造测试 USDT
+  const testAmount = ethers.utils.parseUnits("1000000", 6); // 1,000,000 USDT
+  await usdt.mint(deployer.address, testAmount);
+  console.log("已铸造 1,000,000 USDT 到部署者账户");
+  
   // 保存合约地址
   const addresses = {
-    AntiBTC: antiBTC.address
+    USDT: usdt.address,
+    BTCOracle: oracle.address,
+    AntiBTC: antiBTC.address,
+    network: hre.network.name,
+    chainId: hre.network.config.chainId
   };
-  fs.writeFileSync("deployed-addresses-bsc.json", JSON.stringify(addresses, null, 2));
-  console.log("\n合约地址已保存到 deployed-addresses-bsc.json");
-
-  console.log("\n=== 部署完成 ===");
-  console.log("AntiBTC 合约地址:", antiBTC.address);
-  console.log("\n请等待区块确认后验证合约...");
+  
+  fs.writeFileSync(
+    "deployed-addresses.json",
+    JSON.stringify(addresses, null, 2)
+  );
+  console.log("合约地址已保存到 deployed-addresses.json");
+  
+  // 验证合约（如果需要）
+  if (process.env.VERIFY_CONTRACT === 'true' && hre.network.name !== 'localhost' && hre.network.name !== 'hardhat') {
+    console.log("等待区块确认，然后验证合约...");
+    
+    // 等待几个区块确认
+    await new Promise(resolve => setTimeout(resolve, 60000));
+    
+    // 验证 USDT 合约
+    await hre.run("verify:verify", {
+      address: usdt.address,
+      constructorArguments: ["Mock USDT", "USDT", 6],
+    });
+    
+    // 验证 Oracle 合约
+    await hre.run("verify:verify", {
+      address: oracle.address,
+      constructorArguments: [initialBTCPrice],
+    });
+    
+    // 验证 AntiBTC 合约
+    await hre.run("verify:verify", {
+      address: antiBTC.address,
+      constructorArguments: ["AntiBTC", "aBTC", oracle.address, usdt.address],
+    });
+    
+    console.log("合约验证完成!");
+  }
 }
 
 main()
