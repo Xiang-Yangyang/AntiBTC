@@ -1,0 +1,76 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #f0f2f5;
+}
+
+.container {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    min-width: 300px;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 2rem;
+}
+
+.timezone-selector {
+    margin-bottom: 1.5rem;
+}
+
+.timezone-selector select {
+    padding: 0.5rem;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    font-size: 1rem;
+}
+
+.price-box, .change-box {
+    font-size: 2rem;
+    margin: 1rem 0;
+}
+
+.label {
+    color: #666;
+}
+
+.price {
+    color: #2ecc71;
+    font-weight: bold;
+}
+
+.change {
+    font-weight: bold;
+}
+
+.change.positive {
+    color: #2ecc71;
+}
+
+.change.negative {
+    color: #e74c3c;
+}
+
+.update-time {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+@keyframes priceUpdate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.price-update {
+    animation: priceUpdate 0.5s ease;
+} 
