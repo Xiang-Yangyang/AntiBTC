@@ -1,0 +1,67 @@
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+h1 {
+  color: #333;
+  margin-bottom: 30px;
+}
+
+.price-box, .change-box {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.label {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.price {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+
+.price-update {
+  animation: priceUpdate 0.5s ease-in-out;
+}
+
+@keyframes priceUpdate {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+    color: #4CAF50;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.change {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.positive {
+  color: #4CAF50;
+}
+
+.negative {
+  color: #f44336;
+}
+
+.update-time {
+  margin-top: 20px;
+  color: #666;
+  font-size: 14px;
+} 

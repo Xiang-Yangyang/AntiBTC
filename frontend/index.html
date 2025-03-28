@@ -4,24 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BTC Price Tracker</title>
-    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>BTC 实时价格</h1>
-        <div class="price-box">
-            <span class="label">BTC/USDT:</span>
-            <span id="btcPrice" class="price">加载中...</span>
-        </div>
-        <div class="change-box">
-            <span class="label">24小时涨跌幅：</span>
-            <span id="priceChange" class="change">加载中...</span>
-        </div>
-        <div class="update-time">
-            当前时间: <span id="lastUpdate">-</span>
-            <span id="utcOffset"></span>
-        </div>
-    </div>
-    <script src="js/app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
 </body>
 </html> 

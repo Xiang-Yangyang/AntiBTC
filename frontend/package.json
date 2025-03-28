@@ -4,11 +4,15 @@
   "description": "AntiBTC 前端界面",
   "main": "index.js",
   "scripts": {
-    "start": "serve .",
-    "build": "echo 'No build needed for this project'"
+    "start": "vite",
+    "build": "vite build"
   },
   "dependencies": {
-    "serve": "^14.0.0"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.1.0"
+  }
 } 
