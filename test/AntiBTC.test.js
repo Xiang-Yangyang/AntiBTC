@@ -71,6 +71,12 @@ describe("AntiBTC", function () {
   const testUSDTAmount = ethers.utils.parseUnits("1000", 6); // 1000 USDT
   
   beforeEach(async function () {
+    // 重置整个网络状态
+    await network.provider.request({
+      method: "hardhat_reset",
+      params: []
+    });
+    
     // 获取测试账户
     [owner, user1, user2, ...addrs] = await ethers.getSigners();
     
@@ -355,6 +361,23 @@ describe("AntiBTC", function () {
       // 尝试执行再平衡，应该失败
       await expect(antiBTC.manualRebalance())
         .to.be.revertedWith("Rebalance conditions not met");
+    });
+
+    it("should rebalance after 8 hours", async function () {
+      // 更新 BTC 价格
+      await mockOracle.updatePrice(50000e8); // 50,000 USDT
+      
+      // 增加时间到 8 小时后
+      await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]); // 8 hours
+      await ethers.provider.send("evm_mine");
+      
+      // 执行重平衡
+      await antiBTC.manualRebalance();
+      
+      // 验证重平衡信息
+      const rebalanceInfo = await antiBTC.getRebalanceInfo();
+      expect(rebalanceInfo.lastPriceUpdateTime).to.be.gt(0);
+      expect(rebalanceInfo.lastBTCPrice).to.equal(50000e8);
     });
   });
 }); 

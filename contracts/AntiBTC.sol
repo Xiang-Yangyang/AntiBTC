@@ -402,8 +402,11 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     // 修改原来的 rebalance 函数为手动触发
-    function manualRebalance() external onlyOwner nonReentrant {
-        require(needsRebalance(), "Rebalance conditions not met");
+    function manualRebalance() external {
+        require(
+            block.timestamp >= lastPriceUpdateTime + 8 hours,
+            "Rebalance conditions not met"
+        );
         _rebalance();
     }
 } 
