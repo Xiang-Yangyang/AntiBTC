@@ -46,7 +46,7 @@ describe("AntiBTC", function () {
     AntiBTC = await ethers.getContractFactory("AntiBTC");
     antiBTC = await AntiBTC.deploy(
       "AntiBTC",
-      "aBTC",
+      "AntiBTC",
       mockOracle.address,
       mockUSDT.address
     );
@@ -87,7 +87,7 @@ describe("AntiBTC", function () {
     AntiBTC = await ethers.getContractFactory("AntiBTC");
     antiBTC = await AntiBTC.deploy(
       "AntiBTC",
-      "aBTC",
+      "AntiBTC",
       mockOracle.address,
       mockUSDT.address
     );
@@ -133,12 +133,12 @@ describe("AntiBTC", function () {
   describe("2. 合约部署", function () {
     it("2.1 应该成功部署 AntiBTC 合约", async function () {
       expect(await antiBTC.name()).to.equal("AntiBTC");
-      expect(await antiBTC.symbol()).to.equal("aBTC");
+      expect(await antiBTC.symbol()).to.equal("AntiBTC");
     });
     
     it("2.2 应该正确设置代币名称和符号", async function () {
       expect(await antiBTC.name()).to.equal("AntiBTC");
-      expect(await antiBTC.symbol()).to.equal("aBTC");
+      expect(await antiBTC.symbol()).to.equal("AntiBTC");
     });
     
     it("2.3 应该正确设置预言机地址", async function () {
@@ -226,19 +226,19 @@ describe("AntiBTC", function () {
       
       console.log("\n=== 购买详情 ===");
       console.log("购买前 USDT 余额:", ethers.utils.formatUnits(initialUSDTBalance, 6), "USDT");
-      console.log("购买前 aBTC 余额:", ethers.utils.formatEther(initialTokenBalance), "aBTC");
+      console.log("购买前 AntiBTC 余额:", ethers.utils.formatEther(initialTokenBalance), "AntiBTC");
       
       // 获取初始流动性池状态
       const initialPoolTokens = await antiBTC.poolTokens();
       const initialPoolUSDT = await antiBTC.poolUSDT();
       console.log("\n=== 初始流动性池状态 ===");
-      console.log("池中 aBTC:", ethers.utils.formatEther(initialPoolTokens), "aBTC");
+      console.log("池中 AntiBTC:", ethers.utils.formatEther(initialPoolTokens), "AntiBTC");
       console.log("池中 USDT:", ethers.utils.formatUnits(initialPoolUSDT, 6), "USDT");
       
       // 计算预期获得的代币数量
       const expectedTokens = await antiBTC.calculateTokensOut(testUSDTAmount);
-      console.log("\n用户将使用", ethers.utils.formatUnits(testUSDTAmount, 6), "USDT 购买 aBTC");
-      console.log("预期获得:", ethers.utils.formatEther(expectedTokens), "aBTC");
+      console.log("\n用户将使用", ethers.utils.formatUnits(testUSDTAmount, 6), "USDT 购买 AntiBTC");
+      console.log("预期获得:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
       
       // 用户授权合约使用 USDT
       await mockUSDT.connect(user1).approve(antiBTC.address, testUSDTAmount);
@@ -255,17 +255,17 @@ describe("AntiBTC", function () {
       
       console.log("\n=== 购买结果 ===");
       console.log("购买后 USDT 余额:", ethers.utils.formatUnits(finalUSDTBalance, 6), "USDT");
-      console.log("购买后 aBTC 余额:", ethers.utils.formatEther(finalTokenBalance), "aBTC");
+      console.log("购买后 AntiBTC 余额:", ethers.utils.formatEther(finalTokenBalance), "AntiBTC");
       console.log("实际花费:", ethers.utils.formatUnits(initialUSDTBalance.sub(finalUSDTBalance), 6), "USDT");
-      console.log("实际获得:", ethers.utils.formatEther(finalTokenBalance.sub(initialTokenBalance)), "aBTC");
+      console.log("实际获得:", ethers.utils.formatEther(finalTokenBalance.sub(initialTokenBalance)), "AntiBTC");
       
       // 获取购买后的流动性池状态
       const finalPoolTokens = await antiBTC.poolTokens();
       const finalPoolUSDT = await antiBTC.poolUSDT();
       console.log("\n=== 购买后流动性池状态 ===");
-      console.log("池中 aBTC:", ethers.utils.formatEther(finalPoolTokens), "aBTC");
+      console.log("池中 AntiBTC:", ethers.utils.formatEther(finalPoolTokens), "AntiBTC");
       console.log("池中 USDT:", ethers.utils.formatUnits(finalPoolUSDT, 6), "USDT");
-      console.log("池中 aBTC 变化:", ethers.utils.formatEther(finalPoolTokens.sub(initialPoolTokens)), "aBTC");
+      console.log("池中 AntiBTC 变化:", ethers.utils.formatEther(finalPoolTokens.sub(initialPoolTokens)), "AntiBTC");
       console.log("池中 USDT 变化:", ethers.utils.formatUnits(finalPoolUSDT.sub(initialPoolUSDT), 6), "USDT");
       console.log("==================\n");
       

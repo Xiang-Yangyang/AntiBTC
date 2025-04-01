@@ -48,9 +48,9 @@ async function main() {
     MockERC20Json.bytecode,
     deployer
   );
-  const mockUSDT = await MockUSDTFactory.deploy("Mock USDT", "USDT", 6);
+  const mockUSDT = await MockUSDTFactory.deploy("USD Tether", "USDT", 6);
   await mockUSDT.deployed();
-  console.log("模拟 USDT 已部署到:", mockUSDT.address);
+  console.log("USDT 已部署到:", mockUSDT.address);
 
   // 部署模拟 BTC 预言机
   const MockBTCOracleFactory = new ethers.ContractFactory(
@@ -70,7 +70,7 @@ async function main() {
   );
   const antiBTC = await AntiBTCFactory.deploy(
     "AntiBTC",
-    "aBTC",
+    "AntiBTC",
     mockOracle.address,
     mockUSDT.address
   );
