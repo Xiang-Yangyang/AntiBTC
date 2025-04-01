@@ -81,7 +81,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         (
             uint80 roundID,
             int256 price,
-            uint256 startedAt,
+            uint256 startedAt, // Oracle Compatible
             uint256 timeStamp,
             uint80 answeredInRound
         ) = priceFeed.latestRoundData();
