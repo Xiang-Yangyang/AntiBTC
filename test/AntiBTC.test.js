@@ -14,21 +14,19 @@ describe("AntiBTC", function () {
     console.log("\n=== 账户信息 ===");
     console.log("测试账户地址:", owner.address);
     const balance = await owner.getBalance();
-    console.log("账户余额:", ethers.utils.formatEther(balance), 
-      network.chainId === 97 ? "BNB" : "ETH");
+    console.log("账户余额:", ethers.utils.formatEther(balance), "ETH");
     console.log("==================\n");
   });
 
   describe("网络环境", function () {
-    it("应该在 BSC 测试网环境中运行", async function () {
+    it("应该在本地测试网络中运行", async function () {
       const network = await ethers.provider.getNetwork();
-      expect(network.chainId).to.equal(97, "Chain ID 应该是 97 (BSC 测试网)");
-      expect(network.name).to.equal("bnbt", "网络名称应该是 bnbt");
+      expect(network.chainId).to.equal(31337, "Chain ID 应该是 31337 (Hardhat)");
       
       const [owner] = await ethers.getSigners();
       const balance = await owner.getBalance();
-      const balanceInBNB = parseFloat(ethers.utils.formatEther(balance));
-      expect(balanceInBNB).to.be.closeTo(10000, 1, "初始余额应该接近 10000 BNB");
+      const balanceInETH = parseFloat(ethers.utils.formatEther(balance));
+      expect(balanceInETH).to.be.closeTo(10000, 1, "初始余额应该接近 10000 ETH");
     });
 
     it("应该显示合约部署的 gas 消耗", async function () {
@@ -48,11 +46,11 @@ describe("AntiBTC", function () {
       const gasUsed = ethers.utils.formatEther(initialBalance.sub(finalBalance));
       
       console.log("\n=== Gas 消耗信息 ===");
-      console.log("部署两个合约消耗的 BNB:", gasUsed);
+      console.log("部署两个合约消耗的 ETH:", gasUsed);
       console.log("==================\n");
       
       // 验证 gas 消耗在合理范围内
-      expect(parseFloat(gasUsed)).to.be.lt(0.1, "单次部署的 gas 消耗应该小于 0.1 BNB");
+      expect(parseFloat(gasUsed)).to.be.lt(0.1, "单次部署的 gas 消耗应该小于 0.1 ETH");
     });
   });
 
@@ -90,6 +88,10 @@ describe("AntiBTC", function () {
     mockOracle = await MockBTCOracle.deploy(initialBTCPrice);
     await mockOracle.deployed();
     
+    console.log("\n=== 合约地址信息 ===");
+    console.log("Mock Oracle 地址:", mockOracle.address);
+    console.log("USDT 地址:", mockUSDT.address);
+    
     // 部署 AntiBTC 合约
     AntiBTC = await ethers.getContractFactory("AntiBTC");
     antiBTC = await AntiBTC.deploy(
@@ -99,6 +101,8 @@ describe("AntiBTC", function () {
       mockUSDT.address
     );
     await antiBTC.deployed();
+    console.log("AntiBTC 地址:", antiBTC.address);
+    console.log("==================\n");
   });
   
   describe("部署", function () {
@@ -114,7 +118,7 @@ describe("AntiBTC", function () {
     
     it("应该正确设置 BTC 价格和预言机", async function () {
       expect(await antiBTC.lastBTCPrice()).to.equal(initialBTCPrice);
-      expect(await antiBTC.priceOracle()).to.equal(mockOracle.address);
+      expect(await antiBTC.priceFeed()).to.equal(mockOracle.address);
     });
   });
   
