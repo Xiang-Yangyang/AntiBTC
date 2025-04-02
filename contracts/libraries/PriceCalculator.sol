@@ -25,7 +25,7 @@ library PriceCalculator {
     /**
      * @dev Calculate tokens to receive for given USDT amount using AMM formula
      */
-    function calculateTokensOut(
+    function calculateAMMTokensOut(
         uint256 usdtIn,
         uint256 poolTokens,
         uint256 poolUSDT
@@ -36,7 +36,7 @@ library PriceCalculator {
     /**
      * @dev Calculate USDT to receive for given token amount using AMM formula
      */
-    function calculateUSDTOut(
+    function calculateAMMUSDTOut(
         uint256 tokensIn,
         uint256 poolTokens,
         uint256 poolUSDT

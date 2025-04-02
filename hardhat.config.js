@@ -23,11 +23,12 @@ const commonConfig = {
     }
   },
   gasReporter: {
-    enabled: process.env.REPORT_GAS ? true : false,
+    enabled: true,
     currency: 'USD',
-    gasPrice: 10,
+    gasPrice: 5,
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
   },
+  bnbUsdtPrice: 600,  // 1 BNB = 600 USDT
   networks: {
     localhost: {
       url: "http://127.0.0.1:8545",
@@ -56,6 +57,13 @@ const commonConfig = {
       gasPrice: 10000000000,  // 10 Gwei
       allowUnlimitedContractSize: true,
       blockGasLimit: 30000000
+    },
+    bsc: {
+      url: "https://bsc-dataseed.binance.org/",
+      chainId: 56,
+      accounts: {
+        mnemonic: "your mnemonic here"  // 如果你需要发送交易，需要添加助记词
+      }
     }
   },
   mocha: {

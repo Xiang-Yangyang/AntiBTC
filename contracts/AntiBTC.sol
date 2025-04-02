@@ -20,6 +20,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     uint256 public constant PRICE_PRECISION = 1e8;  // 8 decimals for price
     uint256 public constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
     uint256 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
+    uint256 public constant FEE_RATE = 30;          // 0.3% fee rate (30 basis points)
     
     // 代币总量相关常量
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // 总量为 1T
@@ -42,7 +43,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     uint256 public constant REBALANCE_THRESHOLD = 5e6;     // 5% 价格变化阈值 (1e8 = 100%)
 
     // Events
-    event Swap(address indexed user, bool isBuy, uint256 tokenAmount, uint256 usdtAmount);
+    event Swap(address indexed user, bool isBuy, uint256 tokenAmount, uint256 usdtAmount, uint256 fee);
     event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 usdtAmount);
     event LiquidityRemoved(address indexed provider, uint256 tokenAmount, uint256 usdtAmount);
     event PriceUpdated(uint256 btcPrice, uint256 antibtcPrice);
@@ -134,8 +135,12 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // 2. 根据 BTC 价格变化调整池子
         _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
         
-        // 3. 进行交易
-        uint256 tokensOut = calculateTokensOut(usdtAmount);
+        // 3. 计算并扣除手续费
+        uint256 fee = (usdtAmount * FEE_RATE) / 10000;
+        uint256 usdtAmountAfterFee = usdtAmount - fee;
+        
+        // 4. 进行交易
+        uint256 tokensOut = calculateTokensOut(usdtAmountAfterFee);
         require(tokensOut > 0, "Zero tokens out");
         require(tokensOut <= poolTokens, "Insufficient liquidity");
         
@@ -143,13 +148,13 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(usdt.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
         
         // Update pool state
-        poolUSDT += usdtAmount;
+        poolUSDT += usdtAmount;  // 全部USDT进入池子，包括手续费
         poolTokens -= tokensOut;
         
         // Transfer tokens
         _transfer(address(this), msg.sender, tokensOut);
         
-        emit Swap(msg.sender, true, tokensOut, usdtAmount);
+        emit Swap(msg.sender, true, tokensOut, usdtAmount, fee);
     }
 
     /**
@@ -169,34 +174,39 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // 根据 BTC 价格变化调整池子
         _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
         
-        // Calculate USDT out based on AMM formula
-        uint256 usdtOut = calculateUSDTOut(tokenAmount);
-        require(usdtOut > 0, "Zero USDT out");
+        // Calculate USDT out based on AMM formula - 先计算原始应获得的USDT
+        uint256 rawUsdtOut = calculateUSDTOut(tokenAmount);
+        require(rawUsdtOut > 0, "Zero USDT out");
+        
+        // 计算并扣除手续费
+        uint256 fee = (rawUsdtOut * FEE_RATE) / 10000;
+        uint256 usdtOut = rawUsdtOut - fee;
+        
         require(usdt.balanceOf(address(this)) >= usdtOut, "Insufficient liquidity");
         
         // Update pool state
         poolTokens += tokenAmount;
-        poolUSDT -= usdtOut;
+        poolUSDT -= usdtOut;  // 只减去实际支付给用户的USDT，手续费留在池中
         
         // Transfer tokens and USDT
         _transfer(msg.sender, address(this), tokenAmount);
         require(usdt.transfer(msg.sender, usdtOut), "USDT transfer failed");
         
-        emit Swap(msg.sender, false, tokenAmount, usdtOut);
+        emit Swap(msg.sender, false, tokenAmount, usdtOut, fee);
     }
 
     /**
      * @dev Calculate tokens to receive for given USDT amount
      */
     function calculateTokensOut(uint256 usdtIn) public view returns (uint256) {
-        return PriceCalculator.calculateTokensOut(usdtIn, poolTokens, poolUSDT);
+        return PriceCalculator.calculateAMMTokensOut(usdtIn, poolTokens, poolUSDT);
     }
 
     /**
      * @dev Calculate USDT to receive for given token amount
      */
     function calculateUSDTOut(uint256 tokensIn) public view returns (uint256) {
-        return PriceCalculator.calculateUSDTOut(tokensIn, poolTokens, poolUSDT);
+        return PriceCalculator.calculateAMMUSDTOut(tokensIn, poolTokens, poolUSDT);
     }
 
     /**
@@ -524,5 +534,18 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         
         // 发出池子调整事件
         emit PoolAdjusted(oldPoolTokens, poolTokens, oldReserveTokens, reserveTokens);
+    }
+
+    /**
+     * @dev 获取手续费信息
+     * @return _feeRate 手续费率（以万分之一为单位，例如30表示0.3%）
+     * @return _feesPer1000USDT 每1000USDT交易收取的手续费
+     */
+    function getFeeInfo() external view returns (
+        uint256 _feeRate,
+        uint256 _feesPer1000USDT
+    ) {
+        uint256 feesPer1000USDT = (1000 * FEE_RATE) / 10000;
+        return (FEE_RATE, feesPer1000USDT);
     }
 } 
