@@ -16,7 +16,7 @@ library PriceCalculator {
      * Example: When BTC = $20,000, AntiBTC = $1/$20,000 = $0.00005
      *          When BTC = $10,000, AntiBTC = $1/$10,000 = $0.0001
      */
-    function calculateAntiPrice(uint256 btcPrice) internal pure returns (uint256) {
+    function calculateTargetAntiBTCPrice(uint256 btcPrice) internal pure returns (uint256) {
         require(btcPrice > 0, "BTC price cannot be zero");
         // Calculate inverse price using K/btcPrice, maintaining 8 decimal precision
         return (K * PRICE_PRECISION) / btcPrice;

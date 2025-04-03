@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
-  const [price, setPrice] = useState('加载中...');
-  const [priceChange, setPriceChange] = useState('加载中...');
+  const [price, setPrice] = useState('Loading...');
+  const [priceChange, setPriceChange] = useState('Loading...');
   const [lastUpdate, setLastUpdate] = useState('-');
   const [utcOffset, setUtcOffset] = useState('');
 
-  // 获取本地时区的UTC偏移
+  // Get local timezone UTC offset
   const getUTCOffset = () => {
     const offset = -(new Date().getTimezoneOffset());
     const hours = Math.abs(Math.floor(offset / 60));
@@ -15,7 +15,7 @@ function App() {
     return `UTC${sign}${hours}`;
   };
 
-  // 更新时间显示
+  // Update time display
   const updateTimeDisplay = () => {
     const now = new Date();
     setLastUpdate(now.toLocaleTimeString());
@@ -40,30 +40,30 @@ function App() {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket错误:', error);
-        setPrice('连接错误');
+        console.error('WebSocket Error:', error);
+        setPrice('Connection Error');
       };
 
       ws.onclose = () => {
-        console.log('WebSocket连接已断开，尝试重新连接...');
-        setPrice('正在重新连接...');
+        console.log('WebSocket connection lost, attempting to reconnect...');
+        setPrice('Reconnecting...');
         
-        // 清除之前的重连定时器
+        // Clear previous reconnection timer
         if (reconnectTimeout) {
           clearTimeout(reconnectTimeout);
         }
         
-        // 5秒后尝试重新连接
+        // Try to reconnect after 5 seconds
         reconnectTimeout = setTimeout(() => {
           connectWebSocket();
         }, 5000);
       };
     };
 
-    // 初始连接
+    // Initial connection
     connectWebSocket();
 
-    // 清理函数
+    // Cleanup function
     return () => {
       if (ws) {
         ws.close();
@@ -76,21 +76,21 @@ function App() {
 
   return (
     <div className="container">
-      <h1>BTC 实时价格</h1>
+      <h1>BTC Real-time Price</h1>
       <div className="price-box">
         <span className="label">BTC/USDT:</span>
-        <span className={`price ${price !== '加载中...' && price !== '连接错误' && price !== '连接已断开' ? 'price-update' : ''}`}>
+        <span className={`price ${price !== 'Loading...' && price !== 'Connection Error' && price !== 'Connection Lost' ? 'price-update' : ''}`}>
           {price}
         </span>
       </div>
       <div className="change-box">
-        <span className="label">24小时涨跌幅：</span>
+        <span className="label">24h Change:</span>
         <span className={`change ${parseFloat(priceChange) >= 0 ? 'positive' : 'negative'}`}>
           {priceChange}
         </span>
       </div>
       <div className="update-time">
-        当前时间: {lastUpdate}
+        Current Time: {lastUpdate}
         {utcOffset}
       </div>
     </div>

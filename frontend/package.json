@@ -1,7 +1,7 @@
 {
   "name": "antibtc-frontend",
   "version": "1.0.0",
-  "description": "AntiBTC 前端界面",
+  "description": "AntiBTC Frontend",
   "main": "index.js",
   "scripts": {
     "start": "vite",

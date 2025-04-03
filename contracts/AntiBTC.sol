@@ -107,7 +107,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             lastPriceUpdateTime = block.timestamp;
             
             // Calculate and emit new AntiBTC price
-            uint256 antibtcPrice = calculateAntiPrice(newPrice);
+            uint256 antibtcPrice = calculateTargetAntiBTCPrice(newPrice);
             emit PriceUpdated(newPrice, antibtcPrice);
         }
     }
@@ -115,8 +115,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     /**
      * @dev Calculates the inverse price of BTC
      */
-    function calculateAntiPrice(uint256 btcPrice) public pure returns (uint256) {
-        return PriceCalculator.calculateAntiPrice(btcPrice);
+    function calculateTargetAntiBTCPrice(uint256 btcPrice) public pure returns (uint256) {
+        return PriceCalculator.calculateTargetAntiBTCPrice(btcPrice);
     }
 
     /**
@@ -329,8 +329,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint256 newBtcPrice = uint256(price);
         
-        uint256 oldAntiPrice = PriceCalculator.calculateAntiPrice(oldBtcPrice);
-        uint256 newAntiPrice = PriceCalculator.calculateAntiPrice(newBtcPrice);
+        uint256 oldAntiPrice = PriceCalculator.calculateTargetAntiBTCPrice(oldBtcPrice);
+        uint256 newAntiPrice = PriceCalculator.calculateTargetAntiBTCPrice(newBtcPrice);
         
         // Adjust pool first, then update state
         // Pass old and new prices for adjustment
@@ -374,7 +374,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             poolUSDT,
             totalSupply(),
             lastBTCPrice,
-            calculateAntiPrice(lastBTCPrice),
+            calculateTargetAntiBTCPrice(lastBTCPrice),
             lastPriceUpdateTime
         );
     }
@@ -414,7 +414,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _antiPrice,
         uint256 _poolPrice
     ) {
-        uint256 antiPrice = calculateAntiPrice(lastBTCPrice);
+        uint256 antiPrice = calculateTargetAntiBTCPrice(lastBTCPrice);
         uint256 poolPrice = poolTokens > 0 ? (poolUSDT * 1e18) / poolTokens : 0;  // 1e18 is for precision
         
         return (lastBTCPrice, antiPrice, poolPrice);
