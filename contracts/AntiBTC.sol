@@ -16,31 +16,31 @@ import "./libraries/PriceCalculator.sol";
  * @dev Implementation of the AntiBTC token with AMM functionality
  */
 contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompatible {
-    // Constants
-    uint256 public constant PRICE_PRECISION = 1e8;  // 8 decimals for price
-    uint256 public constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
-    uint256 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
-    uint256 public constant FEE_RATE = 30;          // 0.3% fee rate (30 basis points)
+    // Constants - 使用更小的类型
+    uint64 public constant PRICE_PRECISION = 1e8;  // 8 decimals for price
+    uint64 public constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
+    uint16 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
+    uint16 public constant FEE_RATE = 30;          // 0.3% fee rate (30 basis points)
     
-    // Token supply related constants
-    uint256 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // Total supply is 1T
-    uint256 public constant INITIAL_POOL_TOKENS = 1_000_000 * 1e18;   // Initial circulation 1M (18 decimals)
-    uint256 public constant INITIAL_POOL_USDT = 1_000_000 * 1e6;      // Initial USDT 1M (6 decimals)
+    // Token supply related constants - 使用更小的类型
+    uint128 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // Total supply is 1T
+    uint128 public constant INITIAL_POOL_TOKENS = 1_000_000 * 1e18;   // Initial circulation 1M (18 decimals)
+    uint64 public constant INITIAL_POOL_USDT = 1_000_000 * 1e6;      // Initial USDT 1M (6 decimals)
 
     // State variables
     AggregatorV3Interface public immutable priceFeed;  // Binance Oracle interface
     IERC20 public usdt;  // USDT contract
-    uint256 public lastBTCPrice;
-    uint256 public lastPriceUpdateTime;
+    uint64 public lastBTCPrice;  // 改用 uint64
+    uint32 public lastPriceUpdateTime;  // 改用 uint32
     
-    // Pool variables - New structure
+    // Pool variables - 保持 uint256 因为涉及代币数量
     uint256 public poolTokens;    // Circulating supply (tokens in pool)
     uint256 public reserveTokens; // Reserve supply (for price adjustment)
     uint256 public poolUSDT;      // USDT in pool
 
-    // Price related
-    uint256 public constant REBALANCE_INTERVAL = 8 hours;  // Rebalance interval set to 8 hours
-    uint256 public constant REBALANCE_THRESHOLD = 5e6;     // 5% price change threshold (1e8 = 100%)
+    // Price related - 使用更小的类型
+    uint32 public constant REBALANCE_INTERVAL = 8 hours;  // Rebalance interval set to 8 hours
+    uint32 public constant REBALANCE_THRESHOLD = 5e6;     // 5% price change threshold (1e8 = 100%)
 
     // Events
     event Swap(address indexed user, bool isBuy, uint256 tokenAmount, uint256 usdtAmount, uint256 fee);
@@ -59,19 +59,19 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     constructor(
         string memory name,
         string memory symbol,
-        address _priceFeed,  // Binance Oracle address
-        address _usdt
+        address _priceFeedAddress,
+        address _usdtAddress
     ) ERC20(name, symbol) {
-        require(_priceFeed != address(0), "Invalid price feed address");
-        require(_usdt != address(0), "Invalid USDT address");
+        require(_priceFeedAddress != address(0), "Invalid price feed address");
+        require(_usdtAddress != address(0), "Invalid USDT address");
         
-        priceFeed = AggregatorV3Interface(_priceFeed);
-        usdt = IERC20(_usdt);
+        priceFeed = AggregatorV3Interface(_priceFeedAddress);
+        usdt = IERC20(_usdtAddress);
         
         // Initialize pool
-        poolTokens = INITIAL_POOL_TOKENS;     // Initial circulating supply
-        poolUSDT = INITIAL_POOL_USDT;         // Initial USDT
-        reserveTokens = TOTAL_SUPPLY - INITIAL_POOL_TOKENS;  // Remaining as reserve
+        poolTokens = INITIAL_POOL_TOKENS;
+        poolUSDT = INITIAL_POOL_USDT;
+        reserveTokens = TOTAL_SUPPLY - INITIAL_POOL_TOKENS;
         
         // Mint all tokens to contract
         _mint(address(this), TOTAL_SUPPLY);
@@ -79,8 +79,9 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // Get initial BTC price
         (, int256 price,,,) = priceFeed.latestRoundData();
         require(price > 0, "Invalid initial price");
-        lastBTCPrice = uint256(price);
-        lastPriceUpdateTime = block.timestamp;
+        require(uint256(price) <= type(uint64).max, "Price overflow");
+        lastBTCPrice = uint64(uint256(price));
+        lastPriceUpdateTime = uint32(block.timestamp);
     }
 
     /**
@@ -90,7 +91,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         (
             uint80 roundID,
             int256 price,
-            uint256 startedAt, // Oracle Compatible
+            uint256 startedAt,
             uint256 timeStamp,
             uint80 answeredInRound
         ) = priceFeed.latestRoundData();
@@ -98,15 +99,14 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(timeStamp != 0, "Round not complete");
         require(answeredInRound >= roundID, "Stale price");
         require(price > 0, "Invalid price");
+        require(uint256(price) <= type(uint64).max, "Price overflow");
         
-        uint256 newPrice = uint256(price);
+        uint64 newPrice = uint64(uint256(price));
         
-        // Update price only when it changes
         if (newPrice != lastBTCPrice) {
             lastBTCPrice = newPrice;
-            lastPriceUpdateTime = block.timestamp;
+            lastPriceUpdateTime = uint32(block.timestamp);
             
-            // Calculate and emit new AntiBTC price
             uint256 antibtcPrice = calculateTargetAntiBTCPrice(newPrice);
             emit PriceUpdated(newPrice, antibtcPrice);
         }
@@ -117,6 +117,13 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
      */
     function calculateTargetAntiBTCPrice(uint256 btcPrice) public pure returns (uint256) {
         return PriceCalculator.calculateTargetAntiBTCPrice(btcPrice);
+    }
+
+    /**
+     * @dev Alias for calculateTargetAntiBTCPrice for test compatibility
+     */
+    function calculateAntiPrice(uint256 btcPrice) public pure returns (uint256) {
+        return calculateTargetAntiBTCPrice(btcPrice);
     }
 
     /**
@@ -337,8 +344,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         _adjustPoolForBTCPrice(oldBtcPrice, newBtcPrice);
         
         // Update state
-        lastBTCPrice = newBtcPrice;
-        lastPriceUpdateTime = block.timestamp;
+        lastBTCPrice = uint64(newBtcPrice);
+        lastPriceUpdateTime = uint32(block.timestamp);
         
         emit Rebalanced(
             oldBtcPrice,
