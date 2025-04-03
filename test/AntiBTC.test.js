@@ -12,42 +12,42 @@ describe("AntiBTC", function () {
   let user1;
   let user2;
   
-  // 初始 BTC 价格设置为 $20,000
+  // Initial BTC price set to $20,000
   const initialBTCPrice = ethers.utils.parseUnits("20000", 8);
   
-  // 测试用 USDT 金额
+  // Test USDT amount
   const testUSDTAmount = ethers.utils.parseUnits("1000", 6); // 1000 USDT
 
-  // 新增：常量定义
+  // Added: Constants definition
   const TOTAL_SUPPLY = ethers.utils.parseUnits("1000000000000", 18); // 1T
   const INITIAL_POOL_TOKENS = ethers.utils.parseUnits("1000000", 18);  // 1M
   const INITIAL_POOL_USDT = ethers.utils.parseUnits("1000000", 6);     // 1M
 
   before(async function() {
-    // 检查当前网络
+    // Check current network
     const network = await ethers.provider.getNetwork();
-    console.log("\n=== 网络信息 ===");
+    console.log("\n=== Network Information ===");
     console.log("Chain ID:", network.chainId);
-    console.log("网络名称:", network.name);
+    console.log("Network Name:", network.name);
     
-    // 获取测试账户信息
+    // Get test account information
     [owner, user1, user2, ...addrs] = await ethers.getSigners();
-    console.log("\n=== 账户信息 ===");
-    console.log("测试账户地址:", owner.address);
+    console.log("\n=== Account Information ===");
+    console.log("Test Account Address:", owner.address);
     const balance = await owner.getBalance();
-    console.log("账户余额:", ethers.utils.formatEther(balance), "BNB");
+    console.log("Account Balance:", ethers.utils.formatEther(balance), "BNB");
     
-    // 部署模拟 USDT 合约
+    // Deploy mock USDT contract
     MockUSDT = await ethers.getContractFactory("MockERC20");
     mockUSDT = await MockUSDT.deploy("Mock USDT", "USDT", 6);
     await mockUSDT.deployed();
     
-    // 部署模拟 BTC 预言机
+    // Deploy mock BTC oracle
     MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
     mockOracle = await MockBTCOracle.deploy(initialBTCPrice);
     await mockOracle.deployed();
     
-    // 部署 AntiBTC 合约
+    // Deploy AntiBTC contract
     AntiBTC = await ethers.getContractFactory("AntiBTC");
     antiBTC = await AntiBTC.deploy(
       "AntiBTC",
@@ -57,39 +57,39 @@ describe("AntiBTC", function () {
     );
     await antiBTC.deployed();
 
-    console.log("\n=== 合约地址信息 ===");
-    console.log("Mock Oracle 地址:", mockOracle.address);
-    console.log("USDT 地址:", mockUSDT.address);
-    console.log("AntiBTC 地址:", antiBTC.address);
+    console.log("\n=== Contract Addresses ===");
+    console.log("Mock Oracle Address:", mockOracle.address);
+    console.log("USDT Address:", mockUSDT.address);
+    console.log("AntiBTC Address:", antiBTC.address);
     console.log("==================\n");
   });
 
   beforeEach(async function () {
-    // 重置整个网络状态
+    // Reset entire network state
     await network.provider.request({
       method: "hardhat_reset",
       params: []
     });
     
-    // 获取测试账户
+    // Get test account information
     [owner, user1, user2, ...addrs] = await ethers.getSigners();
     
-    // 部署模拟 USDT 合约
+    // Deploy mock USDT contract
     MockUSDT = await ethers.getContractFactory("MockERC20");
-    mockUSDT = await MockUSDT.deploy("Mock USDT", "USDT", 6); // USDT 是 6 位小数
+    mockUSDT = await MockUSDT.deploy("Mock USDT", "USDT", 6); // USDT has 6 decimals
     await mockUSDT.deployed();
     
-    // 向测试用户铸造 USDT
+    // Mint USDT to test users
     await mockUSDT.mint(owner.address, ethers.utils.parseUnits("10000", 6)); // 10,000 USDT
     await mockUSDT.mint(user1.address, ethers.utils.parseUnits("10000", 6)); // 10,000 USDT
     await mockUSDT.mint(user2.address, ethers.utils.parseUnits("10000", 6)); // 10,000 USDT
     
-    // 部署模拟 BTC 预言机
+    // Deploy mock BTC oracle
     MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
     mockOracle = await MockBTCOracle.deploy(initialBTCPrice);
     await mockOracle.deployed();
     
-    // 部署 AntiBTC 合约
+    // Deploy AntiBTC contract
     AntiBTC = await ethers.getContractFactory("AntiBTC");
     antiBTC = await AntiBTC.deploy(
       "AntiBTC",
@@ -100,22 +100,22 @@ describe("AntiBTC", function () {
     await antiBTC.deployed();
   });
 
-  describe("1. 网络环境", function () {
-    it("1.1 应该在本地测试网络中运行", async function () {
+  describe("1. Network Environment", function () {
+    it("1.1 Should run on local test network", async function () {
       const network = await ethers.provider.getNetwork();
-      expect(network.chainId).to.equal(31337, "Chain ID 应该是 31337 (Hardhat)");
+      expect(network.chainId).to.equal(31337, "Chain ID should be 31337 (Hardhat)");
       
       const [owner] = await ethers.getSigners();
       const balance = await owner.getBalance();
       const balanceInBNB = parseFloat(ethers.utils.formatEther(balance));
-      expect(balanceInBNB).to.be.closeTo(10000, 1, "初始余额应该接近 10000 BNB");
+      expect(balanceInBNB).to.be.closeTo(10000, 1, "Initial balance should be close to 10000 BNB");
     });
 
-    it("1.2 应该显示合约部署的 gas 消耗", async function () {
+    it("1.2 Should display gas consumption of contract deployment", async function () {
       const [owner] = await ethers.getSigners();
       const initialBalance = await owner.getBalance();
       
-      // 部署合约
+      // Deploy contracts
       const MockUSDT = await ethers.getContractFactory("MockERC20");
       const mockUSDT = await MockUSDT.deploy("Mock USDT", "USDT", 6);
       await mockUSDT.deployed();
@@ -127,431 +127,431 @@ describe("AntiBTC", function () {
       const finalBalance = await owner.getBalance();
       const gasUsed = ethers.utils.formatEther(initialBalance.sub(finalBalance));
       
-      console.log("\n=== Gas 消耗信息 ===");
-      console.log("部署两个合约消耗的 BNB:", gasUsed);
+      console.log("\n=== Gas Consumption Information ===");
+      console.log("Deploying two contracts consumed BNB:", gasUsed);
       console.log("==================\n");
       
-      // 验证 gas 消耗在合理范围内
-      expect(parseFloat(gasUsed)).to.be.lt(0.1, "单次部署的 gas 消耗应该小于 0.1 BNB");
+      // Verify gas consumption within reasonable range
+      expect(parseFloat(gasUsed)).to.be.lt(0.1, "Single deployment gas consumption should be less than 0.1 BNB");
     });
   });
 
-  describe("2. 合约部署", function () {
-    it("2.1 应该成功部署 AntiBTC 合约", async function () {
+  describe("2. Contract Deployment", function () {
+    it("2.1 Should successfully deploy AntiBTC contract", async function () {
       expect(await antiBTC.name()).to.equal("AntiBTC");
       expect(await antiBTC.symbol()).to.equal("AntiBTC");
     });
     
-    it("2.2 应该正确设置代币名称和符号", async function () {
+    it("2.2 Should correctly set token name and symbol", async function () {
       expect(await antiBTC.name()).to.equal("AntiBTC");
       expect(await antiBTC.symbol()).to.equal("AntiBTC");
     });
     
-    it("2.3 应该正确设置预言机地址", async function () {
+    it("2.3 Should correctly set price feed address", async function () {
       expect(await antiBTC.priceFeed()).to.equal(mockOracle.address);
     });
     
-    it("2.4 应该正确设置初始流动性", async function () {
-      // 验证初始流动性设置
+    it("2.4 Should correctly set initial liquidity", async function () {
+      // Verify initial liquidity settings
       expect(await antiBTC.poolTokens()).to.equal(INITIAL_POOL_TOKENS);
       expect(await antiBTC.poolUSDT()).to.equal(INITIAL_POOL_USDT);
       
-      // 验证初始价格为 1 USDT
+      // Verify initial price is 1 USDT
       const price = await antiBTC.getPrice();
       expect(ethers.utils.formatUnits(price, 6)).to.equal("1.0");
       
-      // 验证总供应量
+      // Verify total supply
       expect(await antiBTC.totalSupply()).to.equal(TOTAL_SUPPLY);
       
-      // 验证储备量
+      // Verify reserve amount
       const reserveTokens = await antiBTC.reserveTokens();
       expect(reserveTokens).to.equal(TOTAL_SUPPLY.sub(INITIAL_POOL_TOKENS));
     });
   });
   
-  describe("3. 流动性池", function () {
-    it("3.1 应该正确设置初始流动性", async function () {
+  describe("3. Liquidity Pool", function () {
+    it("3.1 Should correctly set initial liquidity", async function () {
       expect(await antiBTC.poolTokens()).to.equal(INITIAL_POOL_TOKENS);
       expect(await antiBTC.poolUSDT()).to.equal(INITIAL_POOL_USDT);
       
-      // 验证初始价格
+      // Verify initial price
       const price = await antiBTC.getPrice();
       expect(ethers.utils.formatUnits(price, 6)).to.equal("1.0");
     });
     
-    it("3.2 应该正确计算价格", async function () {
-      // 验证初始价格为 1 USDT
+    it("3.2 Should correctly calculate price", async function () {
+      // Verify initial price is 1 USDT
       const poolPrice = await antiBTC.getPrice();
       expect(ethers.utils.formatUnits(poolPrice, 6)).to.equal("1.0");
       
-      // 验证理论反向价格
+      // Verify theoretical reverse price
       const antiPrice = await antiBTC.calculateAntiPrice(initialBTCPrice);
       expect(antiPrice).to.equal(ethers.utils.parseUnits("0.00005", 8));
     });
     
-    it("3.3 应该正确计算滑点", async function() {
+    it("3.3 Should correctly calculate slippage", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         
-        // 计算滑点后的代币数量
+        // Calculate slippage adjusted tokens
         const tokensAfterSlippage = await antiBTC.calculateTokensOut(usdtAmount);
         
-        // 计算滑点
+        // Calculate slippage
         const slippage = ethers.utils.parseEther("1000").sub(tokensAfterSlippage);
         const slippagePercentage = slippage.mul(10000).div(ethers.utils.parseEther("1000"));
         
-        console.log("滑点后获得代币:", ethers.utils.formatEther(tokensAfterSlippage), "AntiBTC");
-        console.log("理论无滑点获得:", ethers.utils.formatEther(ethers.utils.parseEther("1000")), "AntiBTC");
-        console.log("滑点百分比:", ethers.utils.formatUnits(slippagePercentage, 2), "%");
+        console.log("Slippage-adjusted tokens obtained:", ethers.utils.formatEther(tokensAfterSlippage), "AntiBTC");
+        console.log("Theoretical tokens without slippage:", ethers.utils.formatEther(ethers.utils.parseEther("1000")), "AntiBTC");
+        console.log("Slippage percentage:", ethers.utils.formatUnits(slippagePercentage, 2), "%");
         
-        // 验证滑点不超过1%
+        // Verify slippage does not exceed 1%
         expect(slippagePercentage).to.be.lte(100);  // 100 = 1%
     });
     
-    it("3.4 应该正确计算交易金额", async function() {
+    it("3.4 Should correctly calculate transaction amount", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         
-        // 计算预期获得的代币数量
+        // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmount);
         
-        // 计算预期支付金额
+        // Calculate expected payment amount
         const expectedUsdt = await antiBTC.calculateUSDTOut(expectedTokens);
         
-        // 验证预期支付金额略小于输入金额（因为滑点）
+        // Verify expected payment amount is slightly less than input amount (due to slippage)
         expect(expectedUsdt).to.be.lt(usdtAmount);
-        // 验证滑点不超过1%
+        // Verify slippage does not exceed 1%
         const slippage = usdtAmount.sub(expectedUsdt);
         const slippagePercentage = slippage.mul(10000).div(usdtAmount);
         expect(slippagePercentage).to.be.lte(100);  // 100 = 1%
     });
   });
   
-  describe("4. 交易功能", function () {
-    it("4.1 应该显示购买 AntiBTC 的详细过程和数量", async function() {
+  describe("4. Trading Functions", function () {
+    it("4.1 Should display detailed process and amount for buying AntiBTC", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         
-        // 获取初始余额
+        // Get initial balances
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         const initialGasBalance = await owner.getBalance();
         
-        console.log("\n=== 购买详情 ===");
-        console.log("购买前 USDT 余额:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
-        console.log("购买前 AntiBTC 余额:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
-        console.log("购买前 Gas 余额:", ethers.utils.formatEther(initialGasBalance), "BNB\n");
+        console.log("\n=== Purchase Details ===");
+        console.log("USDT Balance Before:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
+        console.log("AntiBTC Balance Before:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
+        console.log("Gas Balance Before:", ethers.utils.formatEther(initialGasBalance), "BNB\n");
         
-        // 获取初始池子状态
+        // Get initial pool status
         const initialPoolTokens = await antiBTC.poolTokens();
         const initialPoolUsdt = await antiBTC.poolUSDT();
         const initialPrice = await antiBTC.getPrice();
         
-        console.log("=== 初始流动性池状态 ===");
-        console.log("池中 AntiBTC:", ethers.utils.formatEther(initialPoolTokens), "AntiBTC");
-        console.log("池中 USDT:", ethers.utils.formatUnits(initialPoolUsdt, 6), "USDT");
-        console.log("当前价格:", ethers.utils.formatUnits(initialPrice, 6), "AntiBTC/USDT\n");
+        console.log("=== Initial Pool Status ===");
+        console.log("AntiBTC in Pool:", ethers.utils.formatEther(initialPoolTokens), "AntiBTC");
+        console.log("USDT in Pool:", ethers.utils.formatUnits(initialPoolUsdt, 6), "USDT");
+        console.log("Current Price:", ethers.utils.formatUnits(initialPrice, 6), "AntiBTC/USDT\n");
         
-        // 计算预期获得的代币数量（考虑手续费）
+        // Calculate expected tokens to be received (considering fee)
         const fee = usdtAmount.mul(30).div(10000);  // 0.3% fee
         const usdtAmountAfterFee = usdtAmount.sub(fee);
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmountAfterFee);
         const effectivePrice = usdtAmount.mul(ethers.utils.parseEther("1")).div(expectedTokens);
         
-        console.log("用户将使用", ethers.utils.formatUnits(usdtAmount, 6), "USDT 购买 AntiBTC");
-        console.log("预期获得:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
-        console.log("预期均价:", ethers.utils.formatUnits(effectivePrice, 6), "AntiBTC/USDT\n");
+        console.log("User will use", ethers.utils.formatUnits(usdtAmount, 6), "USDT to buy AntiBTC");
+        console.log("Expected to receive:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
+        console.log("Expected Average Price:", ethers.utils.formatUnits(effectivePrice, 6), "AntiBTC/USDT\n");
         
-        // 执行购买
+        // Execute purchase
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         const tx = await antiBTC.connect(owner).buyTokens(usdtAmount);
         const receipt = await tx.wait();
         
-        // 计算 gas 费用
+        // Calculate gas fees
         const gasUsed = receipt.gasUsed;
         const gasPrice = ethers.utils.parseUnits("5", "gwei");  // 5 gwei
         const gasCost = gasUsed.mul(gasPrice);
-        // 使用 1 BNB = 600 USDT 的价格转换
+        // Convert using 1 BNB = 600 USDT rate
         const gasCostInUsdt = gasCost.mul(600).mul(ethers.utils.parseUnits("1", 6)).div(ethers.utils.parseEther("1"));
         
-        console.log("\n=== Gas 费用信息 ===");
-        console.log("Gas 使用量:", gasUsed.toString(), "gas");
-        console.log("Gas 价格:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
-        console.log("Gas 总费用:", ethers.utils.formatEther(gasCost), "BNB");
-        console.log("Gas 费用(USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
+        console.log("\n=== Gas Fee Information ===");
+        console.log("Gas Used:", gasUsed.toString(), "gas");
+        console.log("Gas Price:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
+        console.log("Total Gas Cost:", ethers.utils.formatEther(gasCost), "BNB");
+        console.log("Gas Cost (USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
         console.log("==================\n");
         
-        // 获取最终余额
+        // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         const finalGasBalance = await owner.getBalance();
         
-        console.log("=== 购买结果 ===");
-        console.log("购买后 USDT 余额:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
-        console.log("购买后 AntiBTC 余额:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
-        console.log("购买后 Gas 余额:", ethers.utils.formatEther(finalGasBalance), "BNB");
-        console.log("实际花费:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
-        console.log("实际获得:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
-        console.log("实际均价:", ethers.utils.formatUnits(effectivePrice, 6), "AntiBTC/USDT\n");
+        console.log("=== Purchase Result ===");
+        console.log("USDT Balance After:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
+        console.log("AntiBTC Balance After:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
+        console.log("Gas Balance After:", ethers.utils.formatEther(finalGasBalance), "BNB");
+        console.log("Actual Spent:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
+        console.log("Actual Received:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
+        console.log("Actual Average Price:", ethers.utils.formatUnits(effectivePrice, 6), "AntiBTC/USDT\n");
         
-        // 获取最终池子状态
+        // Get final pool status
         const finalPoolTokens = await antiBTC.poolTokens();
         const finalPoolUsdt = await antiBTC.poolUSDT();
         const finalPrice = await antiBTC.getPrice();
         
-        console.log("=== 购买后流动性池状态 ===");
-        console.log("池中 AntiBTC:", ethers.utils.formatEther(finalPoolTokens), "AntiBTC");
-        console.log("池中 USDT:", ethers.utils.formatUnits(finalPoolUsdt, 6), "USDT");
-        console.log("当前价格:", ethers.utils.formatUnits(finalPrice, 6), "AntiBTC/USDT");
+        console.log("=== Post-Purchase Pool Status ===");
+        console.log("AntiBTC in Pool:", ethers.utils.formatEther(finalPoolTokens), "AntiBTC");
+        console.log("USDT in Pool:", ethers.utils.formatUnits(finalPoolUsdt, 6), "USDT");
+        console.log("Current Price:", ethers.utils.formatUnits(finalPrice, 6), "AntiBTC/USDT");
         console.log("==================\n");
         
-        // 验证余额变化
+        // Verify balance changes
         expect(finalUsdtBalance).to.equal(initialUsdtBalance.sub(usdtAmount));
         expect(finalAntiBalance).to.equal(expectedTokens);
     });
 
-    it("4.2 应该允许用户用 USDT 购买 AntiBTC", async function() {
+    it("4.2 Should allow user to buy AntiBTC with USDT", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         
-        // 获取初始余额
+        // Get initial balances
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         const initialGasBalance = await owner.getBalance();
         
-        console.log("\n=== 交易前状态 ===");
-        console.log("初始 BNB 余额:", ethers.utils.formatEther(initialGasBalance), "BNB");
+        console.log("\n=== Transaction Before ===");
+        console.log("Initial BNB Balance:", ethers.utils.formatEther(initialGasBalance), "BNB");
         
-        // 计算预期获得的代币数量（考虑手续费）
+        // Calculate expected tokens to be received (considering fee)
         const fee = usdtAmount.mul(30).div(10000);  // 0.3% fee
         const usdtAmountAfterFee = usdtAmount.sub(fee);
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmountAfterFee);
         
-        // 执行购买
-        console.log("\n=== 执行购买交易 ===");
+        // Execute purchase
+        console.log("\n=== Executing Purchase Transaction ===");
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         const tx = await antiBTC.connect(owner).buyTokens(usdtAmount);
         const receipt = await tx.wait();
         
-        // 计算 gas 费用
+        // Calculate gas fees
         const gasUsed = receipt.gasUsed;
         const gasPrice = ethers.utils.parseUnits("5", "gwei");  // 5 gwei
         const gasCost = gasUsed.mul(gasPrice);
-        // 使用 1 BNB = 600 USDT 的价格转换
+        // Convert using 1 BNB = 600 USDT rate
         const gasCostInUsdt = gasCost.mul(600).mul(ethers.utils.parseUnits("1", 6)).div(ethers.utils.parseEther("1"));
         
-        console.log("\n=== Gas 费用详细信息 ===");
-        console.log("交易 Hash:", tx.hash);
-        console.log("区块号:", receipt.blockNumber);
-        console.log("Gas 使用量:", gasUsed.toString(), "gas");
-        console.log("Gas 价格:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
-        console.log("Gas 总费用:", ethers.utils.formatEther(gasCost), "BNB");
-        console.log("Gas 费用(USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
+        console.log("\n=== Detailed Gas Fee Information ===");
+        console.log("Transaction Hash:", tx.hash);
+        console.log("Block Number:", receipt.blockNumber);
+        console.log("Gas Used:", gasUsed.toString(), "gas");
+        console.log("Gas Price:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
+        console.log("Total Gas Cost:", ethers.utils.formatEther(gasCost), "BNB");
+        console.log("Gas Cost (USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
         console.log("==================\n");
         
-        // 获取最终余额
+        // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         const finalGasBalance = await owner.getBalance();
         
-        console.log("=== 交易后状态 ===");
-        console.log("最终 BNB 余额:", ethers.utils.formatEther(finalGasBalance), "BNB");
-        console.log("BNB 余额变化:", ethers.utils.formatEther(initialGasBalance.sub(finalGasBalance)), "BNB");
+        console.log("=== Transaction After ===");
+        console.log("Final BNB Balance:", ethers.utils.formatEther(finalGasBalance), "BNB");
+        console.log("BNB Balance Change:", ethers.utils.formatEther(initialGasBalance.sub(finalGasBalance)), "BNB");
         console.log("==================\n");
         
-        // 验证余额变化
+        // Verify balance changes
         expect(finalUsdtBalance).to.equal(initialUsdtBalance.sub(usdtAmount));
         expect(finalAntiBalance).to.equal(expectedTokens);
     });
     
-    it("4.3 应该允许用户卖出 AntiBTC 换取 USDT", async function() {
-        // 先购买一些代币
+    it("4.3 Should allow user to sell AntiBTC for USDT", async function() {
+        // First buy some tokens
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         await antiBTC.connect(owner).buyTokens(usdtAmount);
         
-        // 获取卖出前的余额
+        // Get balances before selling
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         const initialGasBalance = await owner.getBalance();
         
-        // 计算预期获得的USDT数量
+        // Calculate expected USDT amount to be received
         const expectedUsdt = await antiBTC.calculateUSDTOut(initialAntiBalance);
         
-        // 执行卖出
+        // Execute sell
         const tx = await antiBTC.connect(owner).sellTokens(initialAntiBalance);
         const receipt = await tx.wait();
         
-        // 计算 gas 费用
+        // Calculate gas fees
         const gasUsed = receipt.gasUsed;
         const gasPrice = ethers.utils.parseUnits("5", "gwei");  // 5 gwei
         const gasCost = gasUsed.mul(gasPrice);
-        // 使用 1 BNB = 600 USDT 的价格转换
+        // Convert using 1 BNB = 600 USDT rate
         const gasCostInUsdt = gasCost.mul(600).mul(ethers.utils.parseUnits("1", 6)).div(ethers.utils.parseEther("1"));
         
-        console.log("\n=== Gas 费用信息 ===");
-        console.log("Gas 使用量:", gasUsed.toString(), "gas");
-        console.log("Gas 价格:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
-        console.log("Gas 总费用:", ethers.utils.formatEther(gasCost), "BNB");
-        console.log("Gas 费用(USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
+        console.log("\n=== Gas Fee Information ===");
+        console.log("Gas Used:", gasUsed.toString(), "gas");
+        console.log("Gas Price:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
+        console.log("Total Gas Cost:", ethers.utils.formatEther(gasCost), "BNB");
+        console.log("Gas Cost (USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
         console.log("==================\n");
         
-        // 获取事件
+        // Get event
         const swapEvent = receipt.events.find(e => e.event === "Swap");
         
-        // 获取最终余额
+        // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         const finalGasBalance = await owner.getBalance();
         
-        // 验证余额变化
+        // Verify balance changes
         expect(finalUsdtBalance).to.equal(initialUsdtBalance.add(expectedUsdt.sub(expectedUsdt.mul(30).div(10000))));
         expect(finalAntiBalance).to.equal(0);
     });
 
-    it("4.4 应该根据 BTC 价格变化调整 AntiBTC 购买价格", async function () {
-      // 记录初始状态
+    it("4.4 Should adjust AntiBTC purchase price based on BTC price change", async function () {
+      // Record initial state
       const initialBtcPrice = await antiBTC.lastBTCPrice();
       const initialPoolPrice = await antiBTC.getPrice();
       const initialPoolInfo = await antiBTC.getPoolInfo();
       
-      console.log("\n\n======= BTC 价格变化测试 =======");
-      console.log("初始 BTC 价格:", ethers.utils.formatUnits(initialBtcPrice, 8), "USD");
-      console.log("初始 AntiBTC 池子价格:", ethers.utils.formatUnits(initialPoolPrice, 6), "AntiBTC/USDT");
-      console.log("初始池中 AntiBTC:", ethers.utils.formatEther(initialPoolInfo[0]), "AntiBTC");
-      console.log("初始池中 USDT:", ethers.utils.formatUnits(initialPoolInfo[2], 6), "USDT");
-      console.log("初始储备 AntiBTC:", ethers.utils.formatEther(initialPoolInfo[1]), "AntiBTC");
+      console.log("\n\n======= BTC Price Change Test =======");
+      console.log("Initial BTC Price:", ethers.utils.formatUnits(initialBtcPrice, 8), "USD");
+      console.log("Initial AntiBTC Pool Price:", ethers.utils.formatUnits(initialPoolPrice, 6), "AntiBTC/USDT");
+      console.log("Initial AntiBTC in Pool:", ethers.utils.formatEther(initialPoolInfo[0]), "AntiBTC");
+      console.log("Initial USDT in Pool:", ethers.utils.formatUnits(initialPoolInfo[2], 6), "USDT");
+      console.log("Initial AntiBTC Reserve:", ethers.utils.formatEther(initialPoolInfo[1]), "AntiBTC");
 
-      // 第一次购买（BTC = $20,000）
+      // First purchase (BTC = $20,000)
       await mockUSDT.connect(owner).approve(antiBTC.address, testUSDTAmount);
       const firstBuyTx = await antiBTC.connect(owner).buyTokens(testUSDTAmount);
       const firstBuyReceipt = await firstBuyTx.wait();
       const firstTokensReceived = firstBuyReceipt.events.find(e => e.event === "Swap").args[2];
       
-      console.log("\n----- 第一次购买（BTC = $20,000）-----");
-      console.log("支付:", ethers.utils.formatUnits(testUSDTAmount, 6), "USDT");
-      console.log("获得:", ethers.utils.formatEther(firstTokensReceived), "AntiBTC");
-      console.log("购买后 AntiBTC 池子价格:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
+      console.log("\n----- First Purchase (BTC = $20,000) -----");
+      console.log("Paid:", ethers.utils.formatUnits(testUSDTAmount, 6), "USDT");
+      console.log("Received:", ethers.utils.formatEther(firstTokensReceived), "AntiBTC");
+      console.log("Post-Purchase AntiBTC Pool Price:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
       
-      // BTC 价格上涨到 $22,000 (涨10%)
+      // BTC price increases to $22,000 (up 10%)
       const newBtcPrice = initialBtcPrice.mul(110).div(100);
       await mockOracle.updatePrice(newBtcPrice);
       
-      // 确保预言机价格已更新
+      // Verify oracle price has been updated
       const oracleDataAfterUpdate = await mockOracle.latestRoundData();
       expect(oracleDataAfterUpdate[1]).to.equal(newBtcPrice);
       
-      // 计算理论上的目标价格
-      // 当BTC上涨10%，AntiBTC价格应该下降约9.09%（1/1.1 ≈ 0.9091）
+      // Calculate theoretical target price
+      // When BTC rises 10%, AntiBTC price should fall about 9.09% (1/1.1 ≈ 0.9091)
       const expectedPriceAfterBtcIncrease = initialPoolPrice.mul(1e6).div(ethers.utils.parseUnits("1.1", 6));
       
-      console.log("\n----- BTC 价格上涨 10% -----");
-      console.log("BTC 价格从", ethers.utils.formatUnits(initialBtcPrice, 8), "上涨到", ethers.utils.formatUnits(newBtcPrice, 8), "USD");
-      console.log("理论上 AntiBTC 价格应从", ethers.utils.formatUnits(initialPoolPrice, 6), 
-                 "下降到约", ethers.utils.formatUnits(expectedPriceAfterBtcIncrease, 6), "AntiBTC/USDT");
+      console.log("\n----- BTC Price Increase by 10% -----");
+      console.log("BTC Price increased from", ethers.utils.formatUnits(initialBtcPrice, 8), "to", ethers.utils.formatUnits(newBtcPrice, 8), "USD");
+      console.log("Theoretically, AntiBTC Price should decrease from", ethers.utils.formatUnits(initialPoolPrice, 6), 
+                 "to approximately", ethers.utils.formatUnits(expectedPriceAfterBtcIncrease, 6), "AntiBTC/USDT");
       
-      // 记录重平衡前的池子状态
+      // Record pre-rebalance pool status
       const beforeRebalancePoolInfo = await antiBTC.getPoolInfo();
-      console.log("\n重平衡前池子状态:");
-      console.log("池中 AntiBTC:", ethers.utils.formatEther(beforeRebalancePoolInfo[0]), "AntiBTC");
-      console.log("池中 USDT:", ethers.utils.formatUnits(beforeRebalancePoolInfo[2], 6), "USDT");
-      console.log("当前价格:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
-      console.log("当前价格:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(await antiBTC.getPrice())), "AntiBTC/USDT");
+      console.log("\nPre-Rebalance Pool Status:");
+      console.log("AntiBTC in Pool:", ethers.utils.formatEther(beforeRebalancePoolInfo[0]), "AntiBTC");
+      console.log("USDT in Pool:", ethers.utils.formatUnits(beforeRebalancePoolInfo[2], 6), "USDT");
+      console.log("Current Price:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
+      console.log("Current Price:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(await antiBTC.getPrice())), "AntiBTC/USDT");
       
-      // 触发重平衡
+      // Trigger rebalance
       await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]);
       await ethers.provider.send("evm_mine");
       const rebalanceTx = await antiBTC.manualRebalance();
       const rebalanceReceipt = await rebalanceTx.wait();
       
-      // 查看池子调整事件
+      // Check pool adjustment event
       const poolAdjustedEvent = rebalanceReceipt.events.find(e => e.event === "PoolAdjusted");
       if (poolAdjustedEvent) {
-        console.log("\n----- 池子调整事件 -----");
-        console.log("旧池子代币:", ethers.utils.formatEther(poolAdjustedEvent.args[0]), "AntiBTC");
-        console.log("新池子代币:", ethers.utils.formatEther(poolAdjustedEvent.args[1]), "AntiBTC");
-        console.log("旧储备代币:", ethers.utils.formatEther(poolAdjustedEvent.args[2]), "AntiBTC");
-        console.log("新储备代币:", ethers.utils.formatEther(poolAdjustedEvent.args[3]), "AntiBTC");
+        console.log("\n----- Pool Adjustment Event -----");
+        console.log("Old Pool AntiBTC:", ethers.utils.formatEther(poolAdjustedEvent.args[0]), "AntiBTC");
+        console.log("New Pool AntiBTC:", ethers.utils.formatEther(poolAdjustedEvent.args[1]), "AntiBTC");
+        console.log("Old Reserve AntiBTC:", ethers.utils.formatEther(poolAdjustedEvent.args[2]), "AntiBTC");
+        console.log("New Reserve AntiBTC:", ethers.utils.formatEther(poolAdjustedEvent.args[3]), "AntiBTC");
         
-        // 计算调整比例
+        // Calculate adjustment ratio
         const poolTokensIncrease = poolAdjustedEvent.args[1].sub(poolAdjustedEvent.args[0]);
         const poolTokensIncreasePercent = poolTokensIncrease.mul(10000).div(poolAdjustedEvent.args[0]).toNumber() / 100;
-        console.log("池子代币增加:", ethers.utils.formatEther(poolTokensIncrease), "AntiBTC", `(+${poolTokensIncreasePercent}%)`);
+        console.log("Pool AntiBTC Increase:", ethers.utils.formatEther(poolTokensIncrease), "AntiBTC", `(+${poolTokensIncreasePercent}%)`);
       } else {
-        console.log("未找到PoolAdjusted事件");
+        console.log("PoolAdjusted event not found");
       }
       
-      // 获取重平衡后的价格和池子状态
+      // Get rebalance price and pool status
       const afterRebalancePrice = await antiBTC.getPrice();
       const afterRebalancePoolInfo = await antiBTC.getPoolInfo();
 
-      console.log("\n----- 重平衡后池子状态 -----");
-      console.log("池中 AntiBTC:", ethers.utils.formatEther(afterRebalancePoolInfo[0]), "AntiBTC");
-      console.log("池中 USDT:", ethers.utils.formatUnits(afterRebalancePoolInfo[2], 6), "USDT");
-      console.log("重平衡后价格:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(afterRebalancePrice)), "AntiBTC/USDT");
-      console.log("当前价格:", ethers.utils.formatUnits(afterRebalancePrice, 6), "AntiBTC/USDT");
+      console.log("\n----- Post-Rebalance Pool Status -----");
+      console.log("AntiBTC in Pool:", ethers.utils.formatEther(afterRebalancePoolInfo[0]), "AntiBTC");
+      console.log("USDT in Pool:", ethers.utils.formatUnits(afterRebalancePoolInfo[2], 6), "USDT");
+      console.log("Post-Rebalance Price:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(afterRebalancePrice)), "AntiBTC/USDT");
+      console.log("Current Price:", ethers.utils.formatUnits(afterRebalancePrice, 6), "AntiBTC/USDT");
       
-      // 计算价格变化百分比
+      // Calculate price change percentage
       const priceChangePercent = initialPoolPrice.gt(afterRebalancePrice) 
         ? initialPoolPrice.sub(afterRebalancePrice).mul(10000).div(initialPoolPrice).toNumber() / 100
         : afterRebalancePrice.sub(initialPoolPrice).mul(10000).div(initialPoolPrice).toNumber() / 100;
       
-      const priceDirection = initialPoolPrice.gt(afterRebalancePrice) ? "下降" : "上涨";
-      console.log(`AntiBTC 价格${priceDirection} ${priceChangePercent}%`);
+      const priceDirection = initialPoolPrice.gt(afterRebalancePrice) ? "decreased" : "increased";
+      console.log(`AntiBTC Price ${priceDirection} by ${priceChangePercent}%`);
       
-      // 验证价格变化方向：当BTC价格上涨时，AntiBTC价格应该下降
+      // Verify price change direction: When BTC price rises, AntiBTC price should fall
       expect(afterRebalancePrice).to.be.lt(initialPoolPrice);
       
-      // 验证价格变化幅度：当BTC价格上涨10%，AntiBTC价格应下降约9.09%
-      // 允许1%的误差
+      // Verify price change magnitude: When BTC price rises 10%, AntiBTC price should fall about 9.09%
+      // Allow 1% error
       const lowerBound = expectedPriceAfterBtcIncrease.mul(99).div(100);
       const upperBound = expectedPriceAfterBtcIncrease.mul(101).div(100);
       
-      // 确保价格在预期范围内
-      console.log("预期价格下限:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(lowerBound)), "AntiBTC/USDT");
-      console.log("实际价格:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(afterRebalancePrice)), "AntiBTC/USDT");
-      console.log("预期价格上限:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(upperBound)), "AntiBTC/USDT");
+      // Verify price is within expected range
+      console.log("Expected Price Lower Bound:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(lowerBound)), "AntiBTC/USDT");
+      console.log("Actual Price:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(afterRebalancePrice)), "AntiBTC/USDT");
+      console.log("Expected Price Upper Bound:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(upperBound)), "AntiBTC/USDT");
       
       expect(afterRebalancePrice).to.be.gt(lowerBound);
       expect(afterRebalancePrice).to.be.lt(upperBound);
       
-      // 第二次购买（BTC = $22,000）
+      // Second purchase (BTC = $22,000)
       await mockUSDT.connect(user2).approve(antiBTC.address, testUSDTAmount);
       const secondBuyTx = await antiBTC.connect(user2).buyTokens(testUSDTAmount);
       const secondBuyReceipt = await secondBuyTx.wait();
       const secondTokensReceived = secondBuyReceipt.events.find(e => e.event === "Swap").args[2];
 
-      console.log("\n----- 第二次购买（BTC = $22,000）-----");
-      console.log("支付:", ethers.utils.formatUnits(testUSDTAmount, 6), "USDT");
-      console.log("获得:", ethers.utils.formatEther(secondTokensReceived), "AntiBTC");
-      console.log("购买后 AntiBTC 池子价格:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
+      console.log("\n----- Second Purchase (BTC = $22,000) -----");
+      console.log("Paid:", ethers.utils.formatUnits(testUSDTAmount, 6), "USDT");
+      console.log("Received:", ethers.utils.formatEther(secondTokensReceived), "AntiBTC");
+      console.log("Post-Purchase AntiBTC Pool Price:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
       
-      // 计算两次购买的代币数量差异
+      // Calculate token increase
       const tokenIncrease = secondTokensReceived.sub(firstTokensReceived);
       const tokenIncreasePercent = tokenIncrease.mul(10000).div(firstTokensReceived).toNumber() / 100;
       
-      console.log("\n----- 购买结果对比 -----");
-      console.log("第一次购买获得:", ethers.utils.formatEther(firstTokensReceived), "AntiBTC");
-      console.log("第二次购买获得:", ethers.utils.formatEther(secondTokensReceived), "AntiBTC");
-      console.log(`第二次比第一次多获得: ${ethers.utils.formatEther(tokenIncrease)} AntiBTC (+${tokenIncreasePercent}%)`);
+      console.log("\n----- Purchase Result Comparison -----");
+      console.log("First Purchase Received:", ethers.utils.formatEther(firstTokensReceived), "AntiBTC");
+      console.log("Second Purchase Received:", ethers.utils.formatEther(secondTokensReceived), "AntiBTC");
+      console.log(`Second Purchase Received More: ${ethers.utils.formatEther(tokenIncrease)} AntiBTC (+${tokenIncreasePercent}%)`);
       
-      // 验证：当BTC价格上涨，AntiBTC价格下降时，应该获得更多的AntiBTC
+      // Verify: When BTC price rises, AntiBTC price falls, should receive more AntiBTC
       expect(secondTokensReceived).to.be.gt(firstTokensReceived);
       
-      // 验证：增加的代币数量比例应该与价格下降比例接近
-      // BTC价格上涨10%，AntiBTC下降约9.09%，那么应该多获得约10%的代币
-      expect(tokenIncreasePercent).to.be.closeTo(10, 1.5); // 允许1.5%的误差
+      // Verify: Token increase ratio should be close to price decrease ratio
+      // When BTC price rises 10%, AntiBTC falls about 9.09%, should receive about 10% more tokens
+      expect(tokenIncreasePercent).to.be.closeTo(10, 1.5); // Allow 1.5% error
       
-      console.log("\n======= 测试结论 =======");
-      console.log(`BTC价格上涨 10%，AntiBTC价格${priceDirection} ${priceChangePercent}%`);
-      console.log(`获得的AntiBTC数量增加 ${tokenIncreasePercent}%`);
-      console.log("验证通过：价格变化符合反向追踪预期\n");
+      console.log("\n======= Test Conclusion =======");
+      console.log(`BTC Price Increased by 10%, AntiBTC Price ${priceDirection} by ${priceChangePercent}%`);
+      console.log(`Received AntiBTC Quantity Increased by ${tokenIncreasePercent}%`);
+      console.log("Verification Passed: Price Change Conforms to Reverse Tracking Expectation\n");
     });
   });
   
-  describe("5. 预言机功能", function () {
-    it("5.1 应该正确获取 BTC 价格", async function () {
+  describe("5. Price Feed Function", function () {
+    it("5.1 Should correctly get BTC price", async function () {
       expect(await antiBTC.lastBTCPrice()).to.equal(initialBTCPrice);
     });
 
-    it("5.2 应该正确计算 AntiBTC 价格", async function () {
-      // 当 BTC 价格为 $20,000 时
+    it("5.2 Should correctly calculate AntiBTC price", async function () {
+      // When BTC price is $20,000
       const antiPrice = await antiBTC.calculateAntiPrice(initialBTCPrice);
       
       // K = 1e8, btcPrice = 20000e8
@@ -559,7 +559,7 @@ describe("AntiBTC", function () {
       const expectedAntiPrice = ethers.utils.parseUnits("0.00005", 8);
       expect(antiPrice).to.equal(expectedAntiPrice);
       
-      // 测试较低的 BTC 价格
+      // Test lower BTC price
       const lowerBTCPrice = ethers.utils.parseUnits("10000", 8); // $10,000
       const antiPriceLower = await antiBTC.calculateAntiPrice(lowerBTCPrice);
       
@@ -569,347 +569,346 @@ describe("AntiBTC", function () {
       expect(antiPriceLower).to.equal(expectedAntiPriceLower);
     });
     
-    it("5.3 应该正确计算 AntiBTC 价格（考虑滑点）", async function() {
+    it("5.3 Should correctly calculate AntiBTC price (considering slippage)", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         
-        // 计算预期获得的代币数量
+        // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmount);
         
-        // 计算实际价格
+        // Calculate actual price
         const actualPrice = usdtAmount.mul(ethers.utils.parseEther("1")).div(expectedTokens);
         
-        // 获取理论价格
+        // Get theoretical price
         const theoreticalPrice = await antiBTC.getPrice();
         
-        // 验证实际价格略高于理论价格（因为滑点）
+        // Verify actual price is slightly higher than theoretical price (due to slippage)
         expect(actualPrice).to.be.gt(theoreticalPrice);
     });
 
-    it("5.4 应该正确计算 AntiBTC 价格（考虑流动性）", async function() {
+    it("5.4 Should correctly calculate AntiBTC price (considering liquidity)", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
       
-      // 计算预期获得的代币数量
+      // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmount);
         
-        // 计算实际价格
+        // Calculate actual price
         const actualPrice = usdtAmount.mul(ethers.utils.parseEther("1")).div(expectedTokens);
         
-        // 获取理论价格
+        // Get theoretical price
         const theoreticalPrice = await antiBTC.getPrice();
         
-        // 验证实际价格略高于理论价格（因为流动性影响）
+        // Verify actual price is slightly higher than theoretical price (due to liquidity impact)
         expect(actualPrice).to.be.gt(theoreticalPrice);
     });
   });
   
-  describe("6. 重平衡功能", function () {
-    it("6.1 应该正确计算重平衡阈值", async function () {
-      // 初始状态不需要再平衡
+  describe("6. Rebalance Function", function () {
+    it("6.1 Should correctly calculate rebalance threshold", async function () {
+      // Initial state does not need rebalance
       const initialRebalanceInfo = await antiBTC.getRebalanceInfo();
       expect(initialRebalanceInfo._needsRebalance).to.be.false;
 
-      // 模拟时间经过8小时
-      await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]); // 8小时
+      // Simulate time passing 8 hours
+      await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]); // 8 hours
       await ethers.provider.send("evm_mine");
 
-      // 现在应该需要再平衡了
+      // Now it should need rebalance
       const afterTimeRebalanceInfo = await antiBTC.getRebalanceInfo();
       expect(afterTimeRebalanceInfo._needsRebalance).to.be.true;
       expect(afterTimeRebalanceInfo._timeSinceLastRebalance).to.be.gte(8 * 60 * 60);
     });
 
-    it("6.2 应该正确计算重平衡数量", async function () {
-      // 更新价格，涨幅6%
-      const newPrice = initialBTCPrice.mul(106).div(100); // 增加6%
+    it("6.2 Should correctly calculate rebalance quantity", async function () {
+      // Update price, 6% increase
+      const newPrice = initialBTCPrice.mul(106).div(100); // Increase 6%
       await mockOracle.updatePrice(newPrice);
 
-      // 检查是否需要再平衡
+      // Check if rebalance is needed
       const rebalanceInfo = await antiBTC.getRebalanceInfo();
       expect(rebalanceInfo._needsRebalance).to.be.true;
       expect(rebalanceInfo._priceChangePercentage).to.be.gte(ethers.utils.parseUnits("5", 6)); // 5%
     });
 
-    it("6.3 应该正确执行重平衡", async function () {
-      // 记录初始状态
+    it("6.3 Should correctly execute rebalance", async function () {
+      // Record initial state
       const initialUpdateTime = await antiBTC.lastPriceUpdateTime();
       const initialBtcPrice = await antiBTC.lastBTCPrice();
 
-      // 更新价格并等待8小时
-      const newPrice = initialBtcPrice.mul(106).div(100); // 增加6%
+      // Update price and wait 8 hours
+      const newPrice = initialBtcPrice.mul(106).div(100); // Increase 6%
       await mockOracle.updatePrice(newPrice);
       await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]);
       await ethers.provider.send("evm_mine");
 
-      // 执行再平衡
+      // Execute rebalance
       const tx = await antiBTC.manualRebalance();
       const receipt = await tx.wait();
 
-      // 验证事件
+      // Verify event
       const rebalanceEvent = receipt.events.find(e => e.event === "Rebalanced");
       expect(rebalanceEvent).to.not.be.undefined;
       
-      // 验证状态更新
+      // Verify state update
       const newUpdateTime = await antiBTC.lastPriceUpdateTime();
       expect(newUpdateTime).to.be.gt(initialUpdateTime);
       
-      // 验证价格更新
+      // Verify price update
       const updatedBtcPrice = await antiBTC.lastBTCPrice();
       expect(updatedBtcPrice).to.equal(newPrice);
 
-      // 验证再平衡后不再需要再平衡
+      // Verify rebalance after no longer needs rebalance
       const afterRebalanceInfo = await antiBTC.getRebalanceInfo();
       expect(afterRebalanceInfo._needsRebalance).to.be.false;
-      expect(afterRebalanceInfo._priceChangePercentage).to.equal(0); // 价格变化百分比应该重置为0
+      expect(afterRebalanceInfo._priceChangePercentage).to.equal(0); // Price change percentage should reset to 0
     });
   });
   
-  describe("7. 手续费功能", function () {
-    it("7.1 应该正确设置手续费率", async function() {
-        const [feeRate, feesPer1000USDT] = await antiBTC.getFeeInfo();
+  describe("7. Fee Functions", function () {
+    it("7.1 Should correctly set fee rate", async function() {
+        const feeRate = await antiBTC.FEE_RATE();
         expect(feeRate).to.equal(30);  // 0.3%
-        expect(feesPer1000USDT).to.equal(3);  // 3 USDT per 1000 USDT
     });
     
-    it("7.2 应该正确收取买入手续费", async function() {
+    it("7.2 Should correctly collect buy fee", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         const expectedFee = usdtAmount.mul(30).div(10000);  // 0.3% fee
         
-        // 获取初始余额
+        // Get initial balances
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         
-        console.log("\n=== 买入手续费测试 ===");
-        console.log("初始 USDT 余额:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
-        console.log("初始 AntiBTC 余额:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
-        console.log("预期手续费:", ethers.utils.formatUnits(expectedFee, 6), "USDT\n");
+        console.log("\n=== Buy Fee Test ===");
+        console.log("Initial USDT Balance:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
+        console.log("Initial AntiBTC Balance:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
+        console.log("Expected Fee:", ethers.utils.formatUnits(expectedFee, 6), "USDT\n");
         
-        // 执行买入
+        // Execute buy
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         const tx = await antiBTC.connect(owner).buyTokens(usdtAmount);
         const receipt = await tx.wait();
         
-        // 获取事件
+        // Get event
         const swapEvent = receipt.events.find(e => e.event === "Swap");
         
-        console.log("=== 事件日志 ===");
-        console.log("Swap 事件:");
-        console.log("用户:", swapEvent.args.user);
-        console.log("是否买入:", swapEvent.args.isBuy);
-        console.log("代币数量:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
-        console.log("USDT 数量:", ethers.utils.formatUnits(swapEvent.args.usdtAmount, 6), "USDT");
-        console.log("手续费:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT\n");
+        console.log("=== Event Log ===");
+        console.log("Swap Event:");
+        console.log("User:", swapEvent.args.user);
+        console.log("Is Buy:", swapEvent.args.isBuy);
+        console.log("Token Amount:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
+        console.log("USDT Amount:", ethers.utils.formatUnits(swapEvent.args.usdtAmount, 6), "USDT");
+        console.log("Fee:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT\n");
         
-        // 获取最终余额
+        // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         
-        console.log("=== 买入后状态 ===");
-        console.log("最终 USDT 余额:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
-        console.log("最终 AntiBTC 余额:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
+        console.log("=== Post-Buy Status ===");
+        console.log("Final USDT Balance:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
+        console.log("Final AntiBTC Balance:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
         console.log("==================\n");
         
-        // 验证余额变化
+        // Verify balance changes
         expect(finalUsdtBalance).to.equal(initialUsdtBalance.sub(usdtAmount));
         expect(swapEvent.args.fee).to.equal(expectedFee);
     });
     
-    it("7.3 应该正确收取卖出手续费", async function() {
-        // 先买入一些代币
+    it("7.3 Should correctly collect sell fee", async function() {
+        // First buy some tokens
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         await antiBTC.connect(owner).buyTokens(usdtAmount);
         
-        // 获取卖出前的余额
+        // Get balances before selling
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         
-        // 计算预期获得的USDT数量
+        // Calculate expected USDT amount to be received
         const expectedUsdt = await antiBTC.calculateUSDTOut(initialAntiBalance);
         const expectedFee = expectedUsdt.mul(30).div(10000);
         const expectedUsdtAfterFee = expectedUsdt.sub(expectedFee);
         
-        // 执行卖出
+        // Execute sell
         const tx = await antiBTC.connect(owner).sellTokens(initialAntiBalance);
         const receipt = await tx.wait();
         
-        // 获取事件
+        // Get event
         const swapEvent = receipt.events.find(e => e.event === "Swap");
         
-        console.log("=== 事件日志 ===");
-        console.log("Swap 事件:");
-        console.log("用户:", swapEvent.args.user);
-        console.log("是否买入:", swapEvent.args.isBuy);
-        console.log("代币数量:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
-        console.log("USDT 数量:", ethers.utils.formatUnits(swapEvent.args.usdtAmount, 6), "USDT");
-        console.log("手续费:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT\n");
+        console.log("=== Event Log ===");
+        console.log("Swap Event:");
+        console.log("User:", swapEvent.args.user);
+        console.log("Is Buy:", swapEvent.args.isBuy);
+        console.log("Token Amount:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
+        console.log("USDT Amount:", ethers.utils.formatUnits(swapEvent.args.usdtAmount, 6), "USDT");
+        console.log("Fee:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT\n");
         
-        // 获取最终余额
+        // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         
-        console.log("=== 卖出后状态 ===");
-        console.log("最终 USDT 余额:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
-        console.log("最终 AntiBTC 余额:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
+        console.log("=== Post-Sell Status ===");
+        console.log("Final USDT Balance:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
+        console.log("Final AntiBTC Balance:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
         console.log("==================\n");
         
-        // 验证余额变化
+        // Verify balance changes
         expect(finalUsdtBalance).to.equal(initialUsdtBalance.add(expectedUsdtAfterFee));
         expect(finalAntiBalance).to.equal(0);
         expect(swapEvent.args.fee).to.equal(expectedFee);
     });
     
-    it("7.5 应该正确计算有手续费情况下的实际价格", async function() {
+    it("7.5 Should correctly calculate effective price with fee", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         const fee = usdtAmount.mul(30).div(10000);  // 0.3% fee
         const usdtAmountAfterFee = usdtAmount.sub(fee);
         
-        // 计算预期获得的代币数量
+        // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmountAfterFee);
         const effectivePrice = usdtAmount.mul(ethers.utils.parseEther("1")).div(expectedTokens);
         
-        console.log("\n=== 手续费对价格影响测试 ===");
-        console.log("初始价格:", ethers.utils.formatUnits(await antiBTC.getPrice(), 18), "AntiBTC/USDT");
-        console.log("用户支付:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
-        console.log("手续费:", ethers.utils.formatUnits(fee, 6), "USDT (0.3%)");
-        console.log("实际用于购买:", ethers.utils.formatUnits(usdtAmountAfterFee, 6), "USDT");
-        console.log("预期获得代币:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
-        console.log("有效价格:", ethers.utils.formatUnits(effectivePrice, 18), "AntiBTC/USDT\n");
+        console.log("\n=== Fee Impact on Price Test ===");
+        console.log("Initial Price:", ethers.utils.formatUnits(await antiBTC.getPrice(), 18), "AntiBTC/USDT");
+        console.log("User Paid:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
+        console.log("Fee:", ethers.utils.formatUnits(fee, 6), "USDT (0.3%)");
+        console.log("Actual Used for Purchase:", ethers.utils.formatUnits(usdtAmountAfterFee, 6), "USDT");
+        console.log("Expected Tokens Received:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
+        console.log("Effective Price:", ethers.utils.formatUnits(effectivePrice, 18), "AntiBTC/USDT\n");
         
-        // 执行买入
+        // Execute buy
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         const tx = await antiBTC.connect(owner).buyTokens(usdtAmount);
         const receipt = await tx.wait();
         
-        // 获取事件
+        // Get event
         const swapEvent = receipt.events.find(e => e.event === "Swap");
         
-        console.log("=== 实际交易结果 ===");
-        console.log("实际收到代币:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
-        console.log("实际手续费:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT");
+        console.log("=== Actual Transaction Result ===");
+        console.log("Actual Tokens Received:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
+        console.log("Actual Fee:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT");
         console.log("==================\n");
         
-        // 验证实际获得的代币数量
+        // Verify actual tokens received
         expect(swapEvent.args.tokenAmount).to.equal(expectedTokens);
         expect(swapEvent.args.fee).to.equal(fee);
     });
 
-    it("7.6 应该正确计算所有费用的叠加影响", async function() {
+    it("7.6 Should correctly calculate cumulative impact of all fees", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         const fee = usdtAmount.mul(30).div(10000);  // 0.3% fee
         const usdtAmountAfterFee = usdtAmount.sub(fee);
         
-        // 获取初始余额
+        // Get initial balances
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         const initialGasBalance = await owner.getBalance();
         
-        console.log("\n=== 综合费用叠加测试 ===\n");
-        console.log("=== 初始状态 ===");
-        console.log("初始 USDT 余额:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
-        console.log("初始 AntiBTC 余额:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
-        console.log("初始 Gas 余额:", ethers.utils.formatEther(initialGasBalance), "BNB\n");
+        console.log("\n=== Cumulative Fee Impact Test ===\n");
+        console.log("=== Initial State ===");
+        console.log("Initial USDT Balance:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
+        console.log("Initial AntiBTC Balance:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
+        console.log("Initial Gas Balance:", ethers.utils.formatEther(initialGasBalance), "BNB\n");
         
-        // 计算预期获得的代币数量
+        // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmountAfterFee);
         
-        console.log("=== 费用叠加分析 ===");
-        console.log("交易金额:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
-        console.log("AMM 滑点影响:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
-        console.log("手续费:", ethers.utils.formatUnits(fee, 6), "USDT (0.3%)");
-        console.log("手续费影响:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
-        console.log("最终预期获得:", ethers.utils.formatEther(expectedTokens), "AntiBTC\n");
+        console.log("=== Fee Impact Analysis ===");
+        console.log("Transaction Amount:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
+        console.log("AMM Slippage Impact:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
+        console.log("Fee:", ethers.utils.formatUnits(fee, 6), "USDT (0.3%)");
+        console.log("Fee Impact:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
+        console.log("Final Expected Tokens Received:", ethers.utils.formatEther(expectedTokens), "AntiBTC\n");
         
-        // 执行买入
+        // Execute buy
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         const tx = await antiBTC.connect(owner).buyTokens(usdtAmount);
         const receipt = await tx.wait();
         
-        // 获取最终余额
+        // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         const finalGasBalance = await owner.getBalance();
         
-        // 计算 gas 费用
+        // Calculate gas fees
         const gasUsed = receipt.gasUsed;
         const gasPrice = ethers.utils.parseUnits("5", "gwei");  // 5 gwei
         const gasCost = gasUsed.mul(gasPrice);
-        // 使用 1 BNB = 600 USDT 的价格转换
+        // Convert using 1 BNB = 600 USDT rate
         const gasCostInUsdt = gasCost.mul(600).mul(ethers.utils.parseUnits("1", 6)).div(ethers.utils.parseEther("1"));
         
-        console.log("=== 实际交易结果 ===");
-        console.log("最终 USDT 余额:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
-        console.log("最终 AntiBTC 余额:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
-        console.log("最终 Gas 余额:", ethers.utils.formatEther(finalGasBalance), "BNB\n");
+        console.log("=== Actual Transaction Result ===");
+        console.log("Final USDT Balance:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
+        console.log("Final AntiBTC Balance:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
+        console.log("Final Gas Balance:", ethers.utils.formatEther(finalGasBalance), "BNB\n");
         
-        // 计算总成本
+        // Calculate total cost
         const totalCost = usdtAmount.add(gasCostInUsdt);
         const effectivePrice = totalCost.mul(ethers.utils.parseEther("1")).div(expectedTokens);
         
-        console.log("=== 综合成本分析 ===");
-        console.log("USDT 成本:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
-        console.log("Gas 成本:", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
-        console.log("总成本:", ethers.utils.formatUnits(totalCost, 6), "USDT");
-        console.log("获得代币:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
-        console.log("实际有效价格:", ethers.utils.formatUnits(effectivePrice, 18), "AntiBTC/USDT\n");
+        console.log("=== Cumulative Cost Analysis ===");
+        console.log("USDT Cost:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
+        console.log("Gas Cost:", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
+        console.log("Total Cost:", ethers.utils.formatUnits(totalCost, 6), "USDT");
+        console.log("Received Tokens:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
+        console.log("Actual Effective Price:", ethers.utils.formatUnits(effectivePrice, 18), "AntiBTC/USDT\n");
         
-        // 计算总费用百分比
+        // Calculate total fee percentage
         const totalFees = fee.add(gasCostInUsdt);
         const totalFeePercentage = totalFees.mul(10000).div(usdtAmount);
         
-        console.log("=== 总费用分析 ===");
-        console.log("AMM 滑点影响:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
-        console.log("交易手续费:", ethers.utils.formatUnits(fee, 6), "USDT (0.3%)");
-        console.log("Gas 费用:", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
-        console.log("总费用百分比:", ethers.utils.formatUnits(totalFeePercentage, 2), "%");
+        console.log("=== Total Fee Analysis ===");
+        console.log("AMM Slippage Impact:", ethers.utils.formatEther(expectedTokens), "AntiBTC");
+        console.log("Transaction Fee:", ethers.utils.formatUnits(fee, 6), "USDT (0.3%)");
+        console.log("Gas Fee:", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
+        console.log("Total Fee Percentage:", ethers.utils.formatUnits(totalFeePercentage, 2), "%");
         console.log("==================\n");
         
-        // 验证余额变化
+        // Verify balance changes
         expect(finalUsdtBalance).to.equal(initialUsdtBalance.sub(usdtAmount));
         expect(finalAntiBalance).to.equal(initialAntiBalance.add(expectedTokens));
         
-        // 验证 gas 余额变化（允许 0.01 BNB 的误差）
+        // Verify gas balance changes (Allow 0.01 BNB error)
         const expectedGasBalance = initialGasBalance.sub(gasCost);
         const gasBalanceDiff = finalGasBalance.sub(expectedGasBalance);
         expect(gasBalanceDiff.abs()).to.be.lte(ethers.utils.parseEther("0.01"));
     });
 
-    it("7.7 应该比较不同函数的 gas 使用量", async function() {
+    it("7.7 Should compare gas usage of different functions", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
         
-        console.log("\n=== 不同函数的 Gas 使用量比较 ===\n");
+        console.log("\n=== Gas Usage Comparison of Different Functions ===\n");
         
-        // 测试 getPrice 函数
+        // Test getPrice function
         const price = await antiBTC.getPrice();
         const getPriceGas = await antiBTC.estimateGas.getPrice();
-        console.log("getPrice 函数:");
-        console.log("价格:", ethers.utils.formatUnits(price, 6), "AntiBTC/USDT");
-        console.log("Gas 使用量:", getPriceGas.toString(), "gas");
-        console.log("操作类型: view 函数（包含除法运算）\n");
+        console.log("getPrice Function:");
+        console.log("Price:", ethers.utils.formatUnits(price, 6), "AntiBTC/USDT");
+        console.log("Gas Used:", getPriceGas.toString(), "gas");
+        console.log("Operation Type: view function (includes division operation)\n");
         
-        // 测试 calculateTokensOut 函数
+        // Test calculateTokensOut function
         const calculateTokensTx = await antiBTC.calculateTokensOut(usdtAmount);
         const calculateTokensGas = await antiBTC.estimateGas.calculateTokensOut(usdtAmount);
-        console.log("calculateTokensOut 函数:");
-        console.log("Gas 使用量:", calculateTokensGas.toString(), "gas");
-        console.log("操作类型: 计算操作\n");
+        console.log("calculateTokensOut Function:");
+        console.log("Gas Used:", calculateTokensGas.toString(), "gas");
+        console.log("Operation Type: calculation operation\n");
         
-        // 测试 buyTokens 函数
+        // Test buyTokens function
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
         const buyTokensTx = await antiBTC.connect(owner).buyTokens(usdtAmount);
         const buyTokensReceipt = await buyTokensTx.wait();
-        console.log("buyTokens 函数:");
-        console.log("Gas 使用量:", buyTokensReceipt.gasUsed.toString(), "gas");
-        console.log("操作类型: 状态读取 + 计算 + 存储\n");
+        console.log("buyTokens Function:");
+        console.log("Gas Used:", buyTokensReceipt.gasUsed.toString(), "gas");
+        console.log("Operation Type: state read + calculation + storage\n");
         
-        // 验证 gas 使用量的合理性
-        expect(getPriceGas).to.be.gt(0);  // getPrice 确实消耗 gas
-        expect(calculateTokensGas).to.be.gt(getPriceGas);  // calculateTokensOut 消耗更多 gas
-        expect(buyTokensReceipt.gasUsed).to.be.gt(calculateTokensGas);  // buyTokens 消耗最多 gas
+        // Verify gas usage reasonability
+        expect(getPriceGas).to.be.gt(0);  // getPrice does consume gas
+        expect(calculateTokensGas).to.be.gt(getPriceGas);  // calculateTokensOut consumes more gas
+        expect(buyTokensReceipt.gasUsed).to.be.gt(calculateTokensGas);  // buyTokens consumes most gas
         
-        console.log("=== Gas 使用量分析 ===");
-        console.log("1. getPrice: 少量 gas，因为包含除法运算");
-        console.log("2. calculateTokensOut: 中等，因为包含更多计算操作");
-        console.log("3. buyTokens: 最高，因为包含状态读取、计算和存储操作");
+        console.log("=== Gas Usage Analysis ===");
+        console.log("1. getPrice: small gas, because includes division operation");
+        console.log("2. calculateTokensOut: medium, because includes more calculation operation");
+        console.log("3. buyTokens: highest, because includes state read, calculation, and storage operation");
         console.log("==================\n");
     });
   });

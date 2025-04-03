@@ -17,7 +17,7 @@ contract MockBTCOracle is AggregatorV3Interface, Ownable {
         timestamp = block.timestamp;
     }
 
-    // 实现 AggregatorV3Interface 的必要函数
+    // Implement required functions from AggregatorV3Interface
     function decimals() external pure override returns (uint8) {
         return DECIMALS;
     }
@@ -50,7 +50,7 @@ contract MockBTCOracle is AggregatorV3Interface, Ownable {
         return (roundId, btcPrice, timestamp, timestamp, roundId);
     }
 
-    // 更新价格的函数（仅用于测试）
+    // Function to update price (for testing only)
     function updatePrice(int256 newPrice) external onlyOwner {
         btcPrice = newPrice;
         roundId++;

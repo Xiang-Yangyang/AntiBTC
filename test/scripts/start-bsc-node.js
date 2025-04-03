@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 
-// 检查端口是否被占用
+// Check if port is occupied
 function checkPort(port) {
   return new Promise((resolve) => {
     const server = http.createServer();
@@ -14,7 +14,7 @@ function checkPort(port) {
   });
 }
 
-// 检查节点是否已经启动
+// Check if node is already running
 async function checkNodeRunning() {
   try {
     const response = await new Promise((resolve, reject) => {
@@ -31,24 +31,24 @@ async function checkNodeRunning() {
 }
 
 async function main() {
-  console.log("正在检查端口 8545...");
+  console.log("Checking port 8545...");
   const isPortAvailable = await checkPort(8545);
   
   if (!isPortAvailable) {
-    console.error("错误: 端口 8545 已被占用!");
-    console.error("请确保没有其他 Hardhat 节点正在运行。");
-    console.error("可以使用 'pkill -f \"hardhat node\"' 命令终止现有节点。");
+    console.error("Error: Port 8545 is already in use!");
+    console.error("Please ensure no other Hardhat node is running.");
+    console.error("You can use 'pkill -f \"hardhat node\"' command to terminate existing nodes.");
     process.exit(1);
   }
 
-  console.log("正在启动本地 BSC 节点...");
+  console.log("Starting local BSC node...");
   
-  // 启动 hardhat 节点
+  // Start hardhat node
   const hardhat = spawn('npx', ['hardhat', 'node', '--config', 'hardhat.config.js'], {
     stdio: 'pipe'
   });
 
-  // 修改输出，将 ETH 替换为 BNB
+  // Modify output, replace ETH with BNB
   hardhat.stdout.on('data', (data) => {
     const output = data.toString()
       .replace(/\(10000 ETH\)/g, '(10000 BNB)')
@@ -61,17 +61,17 @@ async function main() {
     process.stderr.write(data);
   });
 
-  // 等待节点启动
-  console.log("等待节点启动...");
+  // Wait for node to start
+  console.log("Waiting for node to start...");
   let attempts = 0;
-  const maxAttempts = 30; // 最多等待 30 秒
+  const maxAttempts = 30; // Maximum wait time: 30 seconds
   
   while (attempts < maxAttempts) {
     if (await checkNodeRunning()) {
-      console.log("\n本地 BSC 节点已成功启动!");
+      console.log("\nLocal BSC node started successfully!");
       console.log("RPC URL: http://127.0.0.1:8545");
       console.log("Chain ID: 31337");
-      console.log("货币: BNB");
+      console.log("Currency: BNB");
       break;
     }
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -79,26 +79,26 @@ async function main() {
   }
 
   if (attempts >= maxAttempts) {
-    console.error("错误: 节点启动超时!");
+    console.error("Error: Node startup timeout!");
     hardhat.kill();
     process.exit(1);
   }
 
-  // 优雅地处理进程终止
+  // Gracefully handle process termination
   process.on('SIGINT', () => {
-    console.log("\n正在关闭节点...");
+    console.log("\nShutting down node...");
     hardhat.kill();
     process.exit();
   });
 
   process.on('SIGTERM', () => {
-    console.log("\n正在关闭节点...");
+    console.log("\nShutting down node...");
     hardhat.kill();
     process.exit();
   });
 }
 
 main().catch(error => {
-  console.error("启动节点时发生错误:", error);
+  console.error("Error occurred while starting node:", error);
   process.exit(1);
 }); 

@@ -22,25 +22,25 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     uint256 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
     uint256 public constant FEE_RATE = 30;          // 0.3% fee rate (30 basis points)
     
-    // 代币总量相关常量
-    uint256 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // 总量为 1T
-    uint256 public constant INITIAL_POOL_TOKENS = 1_000_000 * 1e18;   // 初始流通量 1M（18位小数）
-    uint256 public constant INITIAL_POOL_USDT = 1_000_000 * 1e6;      // 初始 USDT 1M（6位小数）
+    // Token supply related constants
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // Total supply is 1T
+    uint256 public constant INITIAL_POOL_TOKENS = 1_000_000 * 1e18;   // Initial circulation 1M (18 decimals)
+    uint256 public constant INITIAL_POOL_USDT = 1_000_000 * 1e6;      // Initial USDT 1M (6 decimals)
 
     // State variables
-    AggregatorV3Interface public immutable priceFeed;  // Binance 预言机接口
+    AggregatorV3Interface public immutable priceFeed;  // Binance Oracle interface
     IERC20 public usdt;  // USDT contract
     uint256 public lastBTCPrice;
     uint256 public lastPriceUpdateTime;
     
-    // Pool variables - 新结构
-    uint256 public poolTokens;    // 流通量（池子中的代币）
-    uint256 public reserveTokens; // 储备量（用于价格调节）
-    uint256 public poolUSDT;      // 池子中的 USDT
+    // Pool variables - New structure
+    uint256 public poolTokens;    // Circulating supply (tokens in pool)
+    uint256 public reserveTokens; // Reserve supply (for price adjustment)
+    uint256 public poolUSDT;      // USDT in pool
 
     // Price related
-    uint256 public constant REBALANCE_INTERVAL = 8 hours;  // 再平衡时间间隔改为8小时
-    uint256 public constant REBALANCE_THRESHOLD = 5e6;     // 5% 价格变化阈值 (1e8 = 100%)
+    uint256 public constant REBALANCE_INTERVAL = 8 hours;  // Rebalance interval set to 8 hours
+    uint256 public constant REBALANCE_THRESHOLD = 5e6;     // 5% price change threshold (1e8 = 100%)
 
     // Events
     event Swap(address indexed user, bool isBuy, uint256 tokenAmount, uint256 usdtAmount, uint256 fee);
@@ -59,7 +59,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     constructor(
         string memory name,
         string memory symbol,
-        address _priceFeed,  // Binance 预言机地址
+        address _priceFeed,  // Binance Oracle address
         address _usdt
     ) ERC20(name, symbol) {
         require(_priceFeed != address(0), "Invalid price feed address");
@@ -68,15 +68,15 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         priceFeed = AggregatorV3Interface(_priceFeed);
         usdt = IERC20(_usdt);
         
-        // 初始化池子
-        poolTokens = INITIAL_POOL_TOKENS;     // 初始流通量
-        poolUSDT = INITIAL_POOL_USDT;         // 初始 USDT
-        reserveTokens = TOTAL_SUPPLY - INITIAL_POOL_TOKENS;  // 剩余部分为储备
+        // Initialize pool
+        poolTokens = INITIAL_POOL_TOKENS;     // Initial circulating supply
+        poolUSDT = INITIAL_POOL_USDT;         // Initial USDT
+        reserveTokens = TOTAL_SUPPLY - INITIAL_POOL_TOKENS;  // Remaining as reserve
         
-        // 铸造所有代币到合约
+        // Mint all tokens to contract
         _mint(address(this), TOTAL_SUPPLY);
         
-        // 获取初始 BTC 价格
+        // Get initial BTC price
         (, int256 price,,,) = priceFeed.latestRoundData();
         require(price > 0, "Invalid initial price");
         lastBTCPrice = uint256(price);
@@ -101,7 +101,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         
         uint256 newPrice = uint256(price);
         
-        // 只在价格变化时更新
+        // Update price only when it changes
         if (newPrice != lastBTCPrice) {
             lastBTCPrice = newPrice;
             lastPriceUpdateTime = block.timestamp;
@@ -125,21 +125,21 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     function buyTokens(uint256 usdtAmount) external nonReentrant whenNotPaused {
         require(usdtAmount > 0, "Zero USDT amount");
         
-        // 1. 更新 BTC 价格
+        // 1. Update BTC price
         updatePrice();
         
-        // 获取当前和上次的BTC价格
+        // Get current and last BTC price
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint256 currentBTCPrice = uint256(price);
         
-        // 2. 根据 BTC 价格变化调整池子
+        // 2. Adjust pool based on BTC price change
         _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
         
-        // 3. 计算并扣除手续费
+        // 3. Calculate and deduct fee
         uint256 fee = (usdtAmount * FEE_RATE) / 10000;
         uint256 usdtAmountAfterFee = usdtAmount - fee;
         
-        // 4. 进行交易
+        // 4. Execute trade
         uint256 tokensOut = calculateTokensOut(usdtAmountAfterFee);
         require(tokensOut > 0, "Zero tokens out");
         require(tokensOut <= poolTokens, "Insufficient liquidity");
@@ -148,7 +148,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(usdt.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
         
         // Update pool state
-        poolUSDT += usdtAmount;  // 全部USDT进入池子，包括手续费
+        poolUSDT += usdtAmount;  // All USDT goes to pool, including fees
         poolTokens -= tokensOut;
         
         // Transfer tokens
@@ -167,14 +167,14 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // Update price first
         updatePrice();
         
-        // 获取当前和上次的BTC价格
+        // Get current and last BTC price
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint256 currentBTCPrice = uint256(price);
         
         // 根据 BTC 价格变化调整池子
         _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
         
-        // Calculate USDT out based on AMM formula - 先计算原始应获得的USDT
+        // Calculate USDT out based on AMM formula - Calculate original USDT to receive
         uint256 rawUsdtOut = calculateUSDTOut(tokenAmount);
         require(rawUsdtOut > 0, "Zero USDT out");
         
@@ -186,7 +186,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         
         // Update pool state
         poolTokens += tokenAmount;
-        poolUSDT -= usdtOut;  // 只减去实际支付给用户的USDT，手续费留在池中
+        poolUSDT -= usdtOut;  // Only deduct actual USDT paid to user, fees stay in pool
         
         // Transfer tokens and USDT
         _transfer(msg.sender, address(this), tokenAmount);
@@ -223,11 +223,11 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // Transfer USDT from user
         require(usdt.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
         
-        // 从储备中转移代币到池子
+        // Transfer tokens from reserve to pool
         poolTokens += tokenAmount;
         reserveTokens -= tokenAmount;
         
-        // 铸造新代币给流动性提供者
+        // Mint new tokens to liquidity provider
         _transfer(address(this), msg.sender, tokenAmount);
         
         // Update pool state
@@ -248,12 +248,9 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(usdtAmount > 0, "Zero USDT amount");
         require(usdt.balanceOf(address(this)) >= usdtAmount, "Insufficient USDT in pool");
         
-        // 将代币从流通池转移到储备池
+        // Transfer tokens from circulation pool to reserve pool
         poolTokens -= tokenAmount;
         reserveTokens += tokenAmount;
-        
-        // 将用户的代币转回合约
-        _transfer(msg.sender, address(this), tokenAmount);
         
         // Transfer USDT to user
         require(usdt.transfer(msg.sender, usdtAmount), "USDT transfer failed");
@@ -279,17 +276,17 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev 检查是否需要再平衡
-     * 当满足以下任一条件时触发再平衡：
-     * 1. 距离上次再平衡超过8小时
-     * 2. BTC价格相对于上次再平衡时变化超过5%
+     * @dev Check if rebalance is needed
+     * Triggers rebalance when either condition is met:
+     * 1. More than 8 hours since last rebalance
+     * 2. BTC price changed more than 5% since last rebalance
      */
     function needsRebalance() public view returns (bool) {
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint256 currentPrice = uint256(price);
         uint256 timeSinceLastUpdate = block.timestamp - lastPriceUpdateTime;
         
-        // 计算价格变化百分比
+        // Calculate price change percentage
         uint256 priceChange;
         if (currentPrice > lastBTCPrice) {
             priceChange = ((currentPrice - lastBTCPrice) * 1e8) / lastBTCPrice;
@@ -302,8 +299,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev Chainlink Automation 检查函数
-     * 当需要再平衡时返回 true
+     * @dev Chainlink Automation check function
+     * Returns true when rebalance is needed
      */
     function checkUpkeep(bytes calldata /* checkData */) 
         external 
@@ -316,16 +313,16 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev Chainlink Automation 执行函数
-     * 只能被 Chainlink Automation Registry 调用
+     * @dev Chainlink Automation execution function
+     * Can only be called by Chainlink Automation Registry
      */
     function performUpkeep(bytes calldata /* performData */) external override {
         require(needsRebalance(), "Rebalance conditions not met");
-        _rebalance();  // 内部再平衡函数
+        _rebalance();  // Internal rebalance function
     }
 
     /**
-     * @dev 内部再平衡函数
+     * @dev Internal rebalance function
      */
     function _rebalance() internal {
         uint256 oldBtcPrice = lastBTCPrice;
@@ -335,11 +332,11 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 oldAntiPrice = PriceCalculator.calculateAntiPrice(oldBtcPrice);
         uint256 newAntiPrice = PriceCalculator.calculateAntiPrice(newBtcPrice);
         
-        // 先调整池子，再更新状态
-        // 传递旧价格和新价格以便调整
+        // Adjust pool first, then update state
+        // Pass old and new prices for adjustment
         _adjustPoolForBTCPrice(oldBtcPrice, newBtcPrice);
         
-        // 更新状态
+        // Update state
         lastBTCPrice = newBtcPrice;
         lastPriceUpdateTime = block.timestamp;
         
@@ -353,14 +350,14 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev 获取合约中托管的所有资产信息
-     * @return _poolTokens 池中的AntiBTC代币数量（流通量）
-     * @return _reserveTokens 储备中的AntiBTC代币数量
-     * @return _poolUSDT 池中的USDT数量
-     * @return _totalSupply AntiBTC的总供应量
-     * @return _lastBTCPrice 最新的BTC价格
-     * @return _lastAntiPrice 最新的AntiBTC价格
-     * @return _lastPriceUpdateTime 上次再平衡时间
+     * @dev Get all managed assets information in the contract
+     * @return _poolTokens AntiBTC tokens in pool (circulating supply)
+     * @return _reserveTokens AntiBTC tokens in reserve
+     * @return _poolUSDT USDT amount in pool
+     * @return _totalSupply Total supply of AntiBTC
+     * @return _lastBTCPrice Latest BTC price
+     * @return _lastAntiPrice Latest AntiBTC price
+     * @return _lastPriceUpdateTime Last rebalance time
      */
     function getPoolInfo() external view returns (
         uint256 _poolTokens,
@@ -383,11 +380,11 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev 获取用户在池中的份额信息
-     * @param user 用户地址
-     * @return _tokenBalance 用户持有的AntiBTC数量
-     * @return _tokenShare 用户占总供应量的百分比（精度为1e8，即100% = 1e8）
-     * @return _usdtValue 按当前池价格计算的USDT价值
+     * @dev Get user's share information in the pool
+     * @param user User address
+     * @return _tokenBalance User's AntiBTC balance
+     * @return _tokenShare User's percentage of total supply (precision 1e8, 100% = 1e8)
+     * @return _usdtValue USDT value at current pool price
      */
     function getUserShare(address user) external view returns (
         uint256 _tokenBalance,
@@ -397,20 +394,20 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 balance = balanceOf(user);
         uint256 total = totalSupply();
         
-        // 计算用户份额百分比
+        // Calculate user share percentage
         uint256 share = total > 0 ? (balance * 1e8) / total : 0;
         
-        // 计算用户的USDT价值
+        // Calculate user's USDT value
         uint256 usdtValue = balance > 0 ? (balance * poolUSDT) / poolTokens : 0;
         
         return (balance, share, usdtValue);
     }
 
     /**
-     * @dev 获取当前池子的价格信息
-     * @return _btcPrice 当前BTC价格
-     * @return _antiPrice 当前AntiBTC理论价格
-     * @return _poolPrice 池子中的AntiBTC/USDT价格（1个AntiBTC值多少USDT）
+     * @dev Get current pool price information
+     * @return _btcPrice Current BTC price
+     * @return _antiPrice Current theoretical AntiBTC price
+     * @return _poolPrice AntiBTC/USDT price in pool (how many USDT per AntiBTC)
      */
     function getPriceInfo() external view returns (
         uint256 _btcPrice,
@@ -418,16 +415,16 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _poolPrice
     ) {
         uint256 antiPrice = calculateAntiPrice(lastBTCPrice);
-        uint256 poolPrice = poolTokens > 0 ? (poolUSDT * 1e18) / poolTokens : 0;  // 1e18是为了保持精度
+        uint256 poolPrice = poolTokens > 0 ? (poolUSDT * 1e18) / poolTokens : 0;  // 1e18 is for precision
         
         return (lastBTCPrice, antiPrice, poolPrice);
     }
 
     /**
-     * @dev 获取再平衡状态信息
-     * @return _needsRebalance 是否需要再平衡
-     * @return _timeSinceLastRebalance 距离上次再平衡的时间（秒）
-     * @return _priceChangePercentage 价格变化百分比（精度为1e8）
+     * @dev Get rebalance status information
+     * @return _needsRebalance Whether rebalance is needed
+     * @return _timeSinceLastRebalance Time since last rebalance (seconds)
+     * @return _priceChangePercentage Price change percentage (precision 1e8)
      */
     function getRebalanceInfo() external view returns (
         bool _needsRebalance,
@@ -448,82 +445,82 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         return (needsRebalance(), timeSinceLastUpdate, priceChange);
     }
 
-    // 修改原来的 rebalance 函数为手动触发
+    // Modify original rebalance function to manual trigger
     function manualRebalance() external {
         _rebalance();
     }
 
     /**
-     * @dev 获取当前 AntiBTC 的 USDT 价格
-     * @return price 当前 AntiBTC 的价格（以 USDT 计价，精度为 6 位小数）
+     * @dev Get current AntiBTC USDT price
+     * @return price Current AntiBTC price (in USDT, 6 decimals precision)
      */
     function getPrice() public view returns (uint256) {
-        // 从流动性池计算价格
+        // Calculate price from liquidity pool
         if (poolTokens == 0) return 0;
         
         // price = poolUSDT / poolTokens
-        // poolUSDT 精度为 6，poolTokens 精度为 18
-        // 为了保持精度，我们需要先乘以 1e18
+        // poolUSDT precision is 6, poolTokens precision is 18
+        // To maintain precision, we need to multiply by 1e18 first
         return (poolUSDT * 1e18) / poolTokens;
     }
 
     /**
-     * @dev 根据 BTC 价格变化调整池子比例
-     * 当BTC价格上涨，AntiBTC价格应下跌；当BTC价格下跌，AntiBTC价格应上涨
-     * @param oldPrice 调整前的BTC价格
-     * @param newPrice 调整后的BTC价格
+     * @dev Adjust pool ratio based on BTC price change
+     * When BTC price rises, AntiBTC price should fall; when BTC price falls, AntiBTC price should rise
+     * @param oldPrice BTC price before adjustment
+     * @param newPrice BTC price after adjustment
      */
     function _adjustPoolForBTCPrice(uint256 oldPrice, uint256 newPrice) internal {
-        // 如果价格没有变化，不需要调整
+        // If price hasn't changed, no adjustment needed
         if (oldPrice == newPrice) return;
         
-        // 记录调整前的状态
+        // Record state before adjustment
         uint256 oldPoolTokens = poolTokens;
         uint256 oldReserveTokens = reserveTokens;
         
-        // 计算价格变化比例
+        // Calculate price change ratio
         uint256 priceRatio;
         
         if (newPrice > oldPrice) {
-            // BTC 价格上涨
-            // 例如：BTC价格从20000上涨到22000，上涨了10%
+            // BTC price rises
+            // Example: BTC price rises from 20000 to 22000, up 10%
             // priceRatio = 22000 * 1e18 / 20000 = 1.1 * 1e18
             priceRatio = (newPrice * 1e18) / oldPrice;
             
-            // AntiBTC 价格应该下降，池中代币数量应该增加
-            // 新池子代币 = 旧池子代币 * priceRatio
+            // AntiBTC price should fall, pool tokens should increase
+            // New pool tokens = old pool tokens * priceRatio
             uint256 newPoolTokens = (poolTokens * priceRatio) / 1e18;
             uint256 tokensToAdd = newPoolTokens - poolTokens;
             
-            // 检查储备是否足够
+            // Check if reserve is sufficient
             if (tokensToAdd <= reserveTokens) {
-                // 足够，直接调整
+                // Sufficient, adjust directly
                 poolTokens = newPoolTokens;
                 reserveTokens -= tokensToAdd;
             } else if (reserveTokens > 0) {
-                // 不足，使用全部储备
+                // Insufficient, use all reserves
                 poolTokens += reserveTokens;
                 reserveTokens = 0;
             }
         } else {
-            // BTC 价格下跌
-            // 例如：BTC价格从20000下跌到18000，下跌了10%
+            // BTC price falls
+            // Example: BTC price falls from 20000 to 18000, down 10%
             // priceRatio = 20000 * 1e18 / 18000 = 1.111... * 1e18
             priceRatio = (oldPrice * 1e18) / newPrice;
             
-            // AntiBTC 价格应该上涨，池中代币数量应该减少
-            // 新池子代币 = 旧池子代币 / priceRatio = 旧池子代币 * (newPrice / oldPrice)
+            // AntiBTC price should rise, pool tokens should decrease
+            // New pool tokens = old pool tokens / priceRatio = old pool tokens * (newPrice / oldPrice)
             uint256 newPoolTokens = (poolTokens * 1e18) / priceRatio;
             uint256 tokensToRemove = poolTokens - newPoolTokens;
             
-            // 确保池子中保留足够的代币（至少1000个）
+            // Ensure enough tokens remain in pool (at least 1000)
             if (tokensToRemove < poolTokens && newPoolTokens >= 1000 * 1e18) {
                 poolTokens = newPoolTokens;
                 reserveTokens += tokensToRemove;
             }
         }
         
-        // 确保池子中至少有1000个代币（防止价格无限大）
+        // Ensure at least 1000 tokens in pool (prevent infinite price)
         if (poolTokens < 1000 * 1e18) {
             uint256 tokensToAdd = 1000 * 1e18 - poolTokens;
             if (tokensToAdd <= reserveTokens) {
@@ -532,20 +529,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             }
         }
         
-        // 发出池子调整事件
+        // Emit pool adjustment event
         emit PoolAdjusted(oldPoolTokens, poolTokens, oldReserveTokens, reserveTokens);
     }
 
-    /**
-     * @dev 获取手续费信息
-     * @return _feeRate 手续费率（以万分之一为单位，例如30表示0.3%）
-     * @return _feesPer1000USDT 每1000USDT交易收取的手续费
-     */
-    function getFeeInfo() external view returns (
-        uint256 _feeRate,
-        uint256 _feesPer1000USDT
-    ) {
-        uint256 feesPer1000USDT = (1000 * FEE_RATE) / 10000;
-        return (FEE_RATE, feesPer1000USDT);
-    }
 } 

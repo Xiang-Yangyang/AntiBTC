@@ -4,7 +4,7 @@ require("hardhat-gas-reporter");
 require("@nomiclabs/hardhat-etherscan");
 require('dotenv').config();
 
-// 通用配置
+// Common configuration
 const commonConfig = {
   paths: {
     sources: "./contracts",
@@ -62,7 +62,7 @@ const commonConfig = {
       url: "https://bsc-dataseed.binance.org/",
       chainId: 56,
       accounts: {
-        mnemonic: "your mnemonic here"  // 如果你需要发送交易，需要添加助记词
+        mnemonic: "your mnemonic here"  // Add your mnemonic if you need to send transactions
       }
     }
   },

@@ -1,8 +1,8 @@
 const fs = require("fs");
 const path = require("path");
-const { ethers } = require("ethers");  // 使用标准 ethers 而不是 hardhat 的 ethers
+const { ethers } = require("ethers");  // Use standard ethers instead of hardhat's ethers
 
-// 编译好的合约 JSON
+// Compiled contract JSONs
 const MockERC20Json = require("../../artifacts/contracts/mocks/MockERC20.sol/MockERC20.json");
 const MockBTCOracleJson = require("../../artifacts/contracts/mocks/MockBTCOracle.sol/MockBTCOracle.json");
 const AntiBTCJson = require("../../artifacts/contracts/AntiBTC.sol/AntiBTC.json");
@@ -11,38 +11,38 @@ async function checkNodeRunning() {
   try {
     const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
     await provider.getNetwork();
-    return provider;  // 返回 provider 对象
+    return provider;  // Return provider object
   } catch (error) {
     return null;
   }
 }
 
 async function main() {
-  // 检查本地节点是否运行
+  // Check if local node is running
   const provider = await checkNodeRunning();
   if (!provider) {
-    console.error("\n错误: 本地节点未运行!");
-    console.error("请先运行: node test/scripts/start-bsc-node.js");
+    console.error("\nError: Local node is not running!");
+    console.error("Please run first: node test/scripts/start-bsc-node.js");
     process.exit(1);
   }
 
   const network = await provider.getNetwork();
-  console.log("\n=== BSC 测试网环境 ===");
+  console.log("\n=== BSC Testnet Environment ===");
   console.log("Chain ID:", network.chainId);
-  console.log("网络:", "BSC Testnet");
-  console.log("货币:", "BNB");
+  console.log("Network:", "BSC Testnet");
+  console.log("Currency:", "BNB");
 
-  // 使用第一个账户作为部署者
-  const deployerPrivateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // hardhat 默认的第一个账户私钥
+  // Use first account as deployer
+  const deployerPrivateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // hardhat default first account private key
   const deployer = new ethers.Wallet(deployerPrivateKey, provider);
   
-  console.log("\n部署账户:", deployer.address);
-  console.log("账户余额:", ethers.utils.formatEther(await deployer.getBalance()), "BNB");
+  console.log("\nDeployer Address:", deployer.address);
+  console.log("Account Balance:", ethers.utils.formatEther(await deployer.getBalance()), "BNB");
 
-  // 部署合约
-  console.log("\n开始部署合约...");
+  // Deploy contracts
+  console.log("\nStarting contract deployment...");
 
-  // 部署模拟 USDT
+  // Deploy mock USDT
   const MockUSDTFactory = new ethers.ContractFactory(
     MockERC20Json.abi,
     MockERC20Json.bytecode,
@@ -50,9 +50,9 @@ async function main() {
   );
   const mockUSDT = await MockUSDTFactory.deploy("USD Tether", "USDT", 6);
   await mockUSDT.deployed();
-  console.log("USDT 已部署到:", mockUSDT.address);
+  console.log("USDT deployed to:", mockUSDT.address);
 
-  // 部署模拟 BTC 预言机
+  // Deploy mock BTC oracle
   const MockBTCOracleFactory = new ethers.ContractFactory(
     MockBTCOracleJson.abi,
     MockBTCOracleJson.bytecode,
@@ -60,9 +60,9 @@ async function main() {
   );
   const mockOracle = await MockBTCOracleFactory.deploy(ethers.utils.parseUnits("20000", "8"));
   await mockOracle.deployed();
-  console.log("BTC 预言机已部署到:", mockOracle.address);
+  console.log("BTC Oracle deployed to:", mockOracle.address);
 
-  // 部署 AntiBTC
+  // Deploy AntiBTC
   const AntiBTCFactory = new ethers.ContractFactory(
     AntiBTCJson.abi,
     AntiBTCJson.bytecode,
@@ -75,32 +75,32 @@ async function main() {
     mockUSDT.address
   );
   await antiBTC.deployed();
-  console.log("AntiBTC 已部署到:", antiBTC.address);
+  console.log("AntiBTC deployed to:", antiBTC.address);
 
-  // 铸造测试 USDT
+  // Mint test USDT
   const testAmount = ethers.utils.parseUnits("1000000", "6"); // 1,000,000 USDT
   const mintTx = await mockUSDT.mint(deployer.address, testAmount);
   await mintTx.wait();
-  console.log("\n已铸造", ethers.utils.formatUnits(testAmount, 6), "USDT 到部署者账户");
+  console.log("\nMinted", ethers.utils.formatUnits(testAmount, 6), "USDT to deployer account");
 
-  // 保存合约地址
+  // Save contract addresses
   const addresses = {
     USDT: mockUSDT.address,
     BTCOracle: mockOracle.address,
     AntiBTC: antiBTC.address
   };
   
-  // 使用相对于项目根目录的路径
+  // Use path relative to project root
   const addressesPath = path.join(__dirname, '../../deployed-addresses.json');
   fs.writeFileSync(addressesPath, JSON.stringify(addresses, null, 2));
-  console.log("\n合约地址已保存到 deployed-addresses.json");
+  console.log("\nContract addresses saved to deployed-addresses.json");
 
-  console.log("\n=== MetaMask 配置信息 ===");
-  console.log("网络名称: BSC Testnet");
+  console.log("\n=== MetaMask Configuration ===");
+  console.log("Network Name: BSC Testnet");
   console.log("RPC URL: http://127.0.0.1:8545");
   console.log("Chain ID:", network.chainId);
-  console.log("货币符号: BNB");
-  console.log("\n代币合约地址:");
+  console.log("Currency Symbol: BNB");
+  console.log("\nToken Contract Addresses:");
   console.log("USDT:", mockUSDT.address);
   console.log("AntiBTC:", antiBTC.address);
 }
