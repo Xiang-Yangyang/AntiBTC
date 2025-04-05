@@ -16,13 +16,12 @@ import "./libraries/PriceCalculator.sol";
  * @dev Implementation of the AntiBTC token with AMM functionality
  */
 contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompatible {
-    // Constants - 使用更小的类型
+    // Constants - use smaller types
     uint64 public constant PRICE_PRECISION = 1e8;  // 8 decimals for price
-    uint64 public constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
     uint16 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
     uint16 public constant FEE_RATE = 30;          // 0.3% fee rate (30 basis points)
     
-    // Token supply related constants - 使用更小的类型
+    // Token supply related constants - use smaller types
     uint128 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // Total supply is 1T
     uint128 public constant INITIAL_POOL_TOKENS = 1_000_000 * 1e18;   // Initial circulation 1M (18 decimals)
     uint64 public constant INITIAL_POOL_USDT = 1_000_000 * 1e6;      // Initial USDT 1M (6 decimals)
@@ -33,12 +32,12 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     uint64 public lastBTCPrice;  // 改用 uint64
     uint32 public lastPriceUpdateTime;  // 改用 uint32
     
-    // Pool variables - 保持 uint256 因为涉及代币数量
+    // Pool variables - keep uint256 because it involves token amounts
     uint256 public poolTokens;    // Circulating supply (tokens in pool)
     uint256 public reserveTokens; // Reserve supply (for price adjustment)
     uint256 public poolUSDT;      // USDT in pool
 
-    // Price related - 使用更小的类型
+    // Price related - use smaller types
     uint32 public constant REBALANCE_INTERVAL = 8 hours;  // Rebalance interval set to 8 hours
     uint32 public constant REBALANCE_THRESHOLD = 5e6;     // 5% price change threshold (1e8 = 100%)
 

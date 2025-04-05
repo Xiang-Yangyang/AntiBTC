@@ -7,7 +7,6 @@ pragma solidity ^0.8.19;
  */
 library PriceCalculator {
     uint256 constant PRICE_PRECISION = 1e8;  // 8 decimals for price
-    uint256 constant INITIAL_PRICE = 1e8;    // Initial price of 1 USD
     uint256 constant K = 1e8;               // K = 1 USD * BTC (inverse proportion constant)
 
     /**
