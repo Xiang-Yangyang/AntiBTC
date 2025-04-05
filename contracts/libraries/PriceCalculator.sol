@@ -22,9 +22,9 @@ library PriceCalculator {
     }
 
     /**
-     * @dev Calculate tokens to receive for given USDT amount using AMM formula
+     * @dev Calculate AntiBTC tokens to receive for given USDT amount using AMM formula
      */
-    function calculateAMMTokensOut(
+    function calculateAMMAntiBTCOut(
         uint256 usdtIn,
         uint256 poolTokens,
         uint256 poolUSDT

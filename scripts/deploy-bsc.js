@@ -4,10 +4,16 @@ require('dotenv').config();
 
 async function main() {
   // Get environment variables
-  const initialBTCPrice = process.env.INITIAL_BTC_PRICE || "2000000000000";
+  const btcPriceFeedAddress = process.env.BTC_PRICE_FEED_ADDRESS;
+  const usdtAddress = process.env.USDT_ADDRESS;
+  
+  if (!btcPriceFeedAddress || !usdtAddress) {
+    throw new Error("Please set BTC_PRICE_FEED_ADDRESS and USDT_ADDRESS in .env file");
+  }
   
   console.log("Deploying to BSC network...");
-  console.log("Initial BTC price:", ethers.utils.formatUnits(initialBTCPrice, 8), "USD");
+  console.log("Using BTC Price Feed:", btcPriceFeedAddress);
+  console.log("Using USDT:", usdtAddress);
   
   // Get deployer account
   const [deployer] = await ethers.getSigners();
@@ -19,38 +25,21 @@ async function main() {
   
   console.log("Account balance:", (await deployer.getBalance()).toString());
   
-  // Deploy MockUSDT
-  const MockUSDT = await ethers.getContractFactory("MockERC20");
-  const usdt = await MockUSDT.deploy("Mock USDT", "USDT", 6);
-  await usdt.deployed();
-  console.log("MockUSDT deployed to:", usdt.address);
-  
-  // Deploy MockBTCOracle
-  const MockBTCOracle = await ethers.getContractFactory("MockBTCOracle");
-  const oracle = await MockBTCOracle.deploy(initialBTCPrice);
-  await oracle.deployed();
-  console.log("MockBTCOracle deployed to:", oracle.address);
-  
   // Deploy AntiBTC
   const AntiBTC = await ethers.getContractFactory("AntiBTC");
   const antiBTC = await AntiBTC.deploy(
     "AntiBTC",
     "aBTC",
-    oracle.address,
-    usdt.address
+    btcPriceFeedAddress,
+    usdtAddress
   );
   await antiBTC.deployed();
   console.log("AntiBTC deployed to:", antiBTC.address);
   
-  // Mint test USDT
-  const testAmount = ethers.utils.parseUnits("1000000", 6); // 1,000,000 USDT
-  await usdt.mint(deployer.address, testAmount);
-  console.log("Minted 1,000,000 USDT to deployer account");
-  
   // Save contract addresses
   const addresses = {
-    USDT: usdt.address,
-    BTCOracle: oracle.address,
+    USDT: usdtAddress,
+    BTCOracle: btcPriceFeedAddress,
     AntiBTC: antiBTC.address,
     network: hre.network.name,
     chainId: hre.network.config.chainId
@@ -69,22 +58,10 @@ async function main() {
     // Wait for a few block confirmations
     await new Promise(resolve => setTimeout(resolve, 60000));
     
-    // Verify USDT contract
-    await hre.run("verify:verify", {
-      address: usdt.address,
-      constructorArguments: ["Mock USDT", "USDT", 6],
-    });
-    
-    // Verify Oracle contract
-    await hre.run("verify:verify", {
-      address: oracle.address,
-      constructorArguments: [initialBTCPrice],
-    });
-    
     // Verify AntiBTC contract
     await hre.run("verify:verify", {
       address: antiBTC.address,
-      constructorArguments: ["AntiBTC", "aBTC", oracle.address, usdt.address],
+      constructorArguments: ["AntiBTC", "aBTC", btcPriceFeedAddress, usdtAddress],
     });
     
     console.log("Contract verification completed!");

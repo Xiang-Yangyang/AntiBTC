@@ -23,7 +23,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     
     // Token supply related constants - use smaller types
     uint128 public constant TOTAL_SUPPLY = 1_000_000_000_000 * 1e18;  // Total supply is 1T
-    uint128 public constant INITIAL_POOL_TOKENS = 1_000_000 * 1e18;   // Initial circulation 1M (18 decimals)
+    uint128 public constant INITIAL_POOL_ANTIBTC = 1_000_000 * 1e18;   // Initial circulation 1M (18 decimals)
     uint64 public constant INITIAL_POOL_USDT = 1_000_000 * 1e6;      // Initial USDT 1M (6 decimals)
 
     // State variables
@@ -33,8 +33,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     uint32 public lastPriceUpdateTime;  // 改用 uint32
     
     // Pool variables - keep uint256 because it involves token amounts
-    uint256 public poolTokens;    // Circulating supply (tokens in pool)
-    uint256 public reserveTokens; // Reserve supply (for price adjustment)
+    uint256 public poolAntiBTC;    // Circulating supply (tokens in pool)
+    uint256 public reserveAntiBTC; // Reserve supply (for price adjustment)
     uint256 public poolUSDT;      // USDT in pool
 
     // Price related - use smaller types
@@ -68,18 +68,18 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         usdt = IERC20(_usdtAddress);
         
         // Initialize pool
-        poolTokens = INITIAL_POOL_TOKENS;
+        poolAntiBTC = INITIAL_POOL_ANTIBTC;
         poolUSDT = INITIAL_POOL_USDT;
-        reserveTokens = TOTAL_SUPPLY - INITIAL_POOL_TOKENS;
+        reserveAntiBTC = TOTAL_SUPPLY - INITIAL_POOL_ANTIBTC;
         
         // Mint all tokens to contract
         _mint(address(this), TOTAL_SUPPLY);
         
         // Get initial BTC price
-        (, int256 price,,,) = priceFeed.latestRoundData();
-        require(price > 0, "Invalid initial price");
-        require(uint256(price) <= type(uint64).max, "Price overflow");
-        lastBTCPrice = uint64(uint256(price));
+        (, int256 btcPrice,,,) = priceFeed.latestRoundData();
+        require(btcPrice > 0, "Invalid initial price");
+        require(uint256(btcPrice) <= type(uint64).max, "Price overflow");
+        lastBTCPrice = uint64(uint256(btcPrice));
         lastPriceUpdateTime = uint32(block.timestamp);
     }
 
@@ -89,7 +89,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     function updatePrice() public {
         (
             uint80 roundID,
-            int256 price,
+            int256 btcPrice,
             uint256 startedAt,
             uint256 timeStamp,
             uint80 answeredInRound
@@ -97,10 +97,10 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         
         require(timeStamp != 0, "Round not complete");
         require(answeredInRound >= roundID, "Stale price");
-        require(price > 0, "Invalid price");
-        require(uint256(price) <= type(uint64).max, "Price overflow");
+        require(btcPrice > 0, "Invalid price");
+        require(uint256(btcPrice) <= type(uint64).max, "Price overflow");
         
-        uint64 newPrice = uint64(uint256(price));
+        uint64 newPrice = uint64(uint256(btcPrice));
         
         if (newPrice != lastBTCPrice) {
             lastBTCPrice = newPrice;
@@ -128,8 +128,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     /**
      * @dev Buy AntiBTC tokens with USDT
      */
-    function buyTokens(uint256 usdtAmount) external nonReentrant whenNotPaused {
-        require(usdtAmount > 0, "Zero USDT amount");
+    function buyTokens(uint256 usdtIn) external nonReentrant whenNotPaused {
+        require(usdtIn > 0, "Zero USDT amount");
         
         // 1. Update BTC price
         updatePrice();
@@ -142,33 +142,33 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
         
         // 3. Calculate and deduct fee
-        uint256 fee = (usdtAmount * FEE_RATE) / 10000;
-        uint256 usdtAmountAfterFee = usdtAmount - fee;
+        uint256 fee = (usdtIn * FEE_RATE) / 10000;
+        uint256 usdtAfterFee = usdtIn - fee;
         
         // 4. Execute trade
-        uint256 tokensOut = calculateTokensOut(usdtAmountAfterFee);
-        require(tokensOut > 0, "Zero tokens out");
-        require(tokensOut <= poolTokens, "Insufficient liquidity");
+        uint256 antiBTCOut = calculateTokensOut(usdtAfterFee);
+        require(antiBTCOut > 0, "Zero AntiBTC out");
+        require(antiBTCOut <= poolAntiBTC, "Insufficient liquidity");
         
         // Transfer USDT from user
-        require(usdt.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
+        require(usdt.transferFrom(msg.sender, address(this), usdtIn), "USDT transfer failed");
         
         // Update pool state
-        poolUSDT += usdtAmount;  // All USDT goes to pool, including fees
-        poolTokens -= tokensOut;
+        poolUSDT += usdtIn;  // All USDT goes to pool, including fees
+        poolAntiBTC -= antiBTCOut;
         
         // Transfer tokens
-        _transfer(address(this), msg.sender, tokensOut);
+        _transfer(address(this), msg.sender, antiBTCOut);
         
-        emit Swap(msg.sender, true, tokensOut, usdtAmount, fee);
+        emit Swap(msg.sender, true, antiBTCOut, usdtIn, fee);
     }
 
     /**
      * @dev Sell AntiBTC tokens for USDT
      */
-    function sellTokens(uint256 tokenAmount) external nonReentrant whenNotPaused {
-        require(tokenAmount > 0, "Zero tokens");
-        require(balanceOf(msg.sender) >= tokenAmount, "Insufficient balance");
+    function sellTokens(uint256 antiBTCIn) external nonReentrant whenNotPaused {
+        require(antiBTCIn > 0, "Zero tokens");
+        require(balanceOf(msg.sender) >= antiBTCIn, "Insufficient balance");
         
         // Update price first
         updatePrice();
@@ -181,38 +181,38 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
         
         // Calculate USDT out based on AMM formula - Calculate original USDT to receive
-        uint256 rawUsdtOut = calculateUSDTOut(tokenAmount);
-        require(rawUsdtOut > 0, "Zero USDT out");
+        uint256 usdtRawOut = calculateUSDTOut(antiBTCIn);
+        require(usdtRawOut > 0, "Zero USDT out");
         
         // 计算并扣除手续费
-        uint256 fee = (rawUsdtOut * FEE_RATE) / 10000;
-        uint256 usdtOut = rawUsdtOut - fee;
+        uint256 fee = (usdtRawOut * FEE_RATE) / 10000;
+        uint256 usdtOut = usdtRawOut - fee;
         
         require(usdt.balanceOf(address(this)) >= usdtOut, "Insufficient liquidity");
         
         // Update pool state
-        poolTokens += tokenAmount;
+        poolAntiBTC += antiBTCIn;
         poolUSDT -= usdtOut;  // Only deduct actual USDT paid to user, fees stay in pool
         
         // Transfer tokens and USDT
-        _transfer(msg.sender, address(this), tokenAmount);
+        _transfer(msg.sender, address(this), antiBTCIn);
         require(usdt.transfer(msg.sender, usdtOut), "USDT transfer failed");
         
-        emit Swap(msg.sender, false, tokenAmount, usdtOut, fee);
+        emit Swap(msg.sender, false, antiBTCIn, usdtOut, fee);
     }
 
     /**
      * @dev Calculate tokens to receive for given USDT amount
      */
     function calculateTokensOut(uint256 usdtIn) public view returns (uint256) {
-        return PriceCalculator.calculateAMMTokensOut(usdtIn, poolTokens, poolUSDT);
+        return PriceCalculator.calculateAMMAntiBTCOut(usdtIn, poolAntiBTC, poolUSDT);
     }
 
     /**
      * @dev Calculate USDT to receive for given token amount
      */
     function calculateUSDTOut(uint256 tokensIn) public view returns (uint256) {
-        return PriceCalculator.calculateAMMUSDTOut(tokensIn, poolTokens, poolUSDT);
+        return PriceCalculator.calculateAMMUSDTOut(tokensIn, poolAntiBTC, poolUSDT);
     }
 
     /**
@@ -222,16 +222,16 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(usdtAmount > 0, "Zero USDT amount");
         
         // Calculate proportional amount of tokens
-        uint256 tokenAmount = (usdtAmount * poolTokens) / poolUSDT;
+        uint256 tokenAmount = (usdtAmount * poolAntiBTC) / poolUSDT;
         require(tokenAmount > 0, "Zero token amount");
-        require(tokenAmount <= reserveTokens, "Insufficient reserve tokens");
+        require(tokenAmount <= reserveAntiBTC, "Insufficient reserve tokens");
         
         // Transfer USDT from user
         require(usdt.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
         
         // Transfer tokens from reserve to pool
-        poolTokens += tokenAmount;
-        reserveTokens -= tokenAmount;
+        poolAntiBTC += tokenAmount;
+        reserveAntiBTC -= tokenAmount;
         
         // Mint new tokens to liquidity provider
         _transfer(address(this), msg.sender, tokenAmount);
@@ -250,13 +250,13 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(balanceOf(msg.sender) >= tokenAmount, "Insufficient balance");
         
         // Calculate proportional amount of USDT
-        uint256 usdtAmount = (tokenAmount * poolUSDT) / poolTokens;
+        uint256 usdtAmount = (tokenAmount * poolUSDT) / poolAntiBTC;
         require(usdtAmount > 0, "Zero USDT amount");
         require(usdt.balanceOf(address(this)) >= usdtAmount, "Insufficient USDT in pool");
         
         // Transfer tokens from circulation pool to reserve pool
-        poolTokens -= tokenAmount;
-        reserveTokens += tokenAmount;
+        poolAntiBTC -= tokenAmount;
+        reserveAntiBTC += tokenAmount;
         
         // Transfer USDT to user
         require(usdt.transfer(msg.sender, usdtAmount), "USDT transfer failed");
@@ -375,8 +375,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _lastPriceUpdateTime
     ) {
         return (
-            poolTokens,
-            reserveTokens,
+            poolAntiBTC,
+            reserveAntiBTC,
             poolUSDT,
             totalSupply(),
             lastBTCPrice,
@@ -404,7 +404,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 share = total > 0 ? (balance * 1e8) / total : 0;
         
         // Calculate user's USDT value
-        uint256 usdtValue = balance > 0 ? (balance * poolUSDT) / poolTokens : 0;
+        uint256 usdtValue = balance > 0 ? (balance * poolUSDT) / poolAntiBTC : 0;
         
         return (balance, share, usdtValue);
     }
@@ -421,7 +421,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         uint256 _poolPrice
     ) {
         uint256 antiPrice = calculateTargetAntiBTCPrice(lastBTCPrice);
-        uint256 poolPrice = poolTokens > 0 ? (poolUSDT * 1e18) / poolTokens : 0;  // 1e18 is for precision
+        uint256 poolPrice = poolAntiBTC > 0 ? (poolUSDT * 1e18) / poolAntiBTC : 0;  // 1e18 is for precision
         
         return (lastBTCPrice, antiPrice, poolPrice);
     }
@@ -462,12 +462,12 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
      */
     function getPrice() public view returns (uint256) {
         // Calculate price from liquidity pool
-        if (poolTokens == 0) return 0;
+        if (poolAntiBTC == 0) return 0;
         
         // price = poolUSDT / poolTokens
         // poolUSDT precision is 6, poolTokens precision is 18
         // To maintain precision, we need to multiply by 1e18 first
-        return (poolUSDT * 1e18) / poolTokens;
+        return (poolUSDT * 1e18) / poolAntiBTC;
     }
 
     /**
@@ -481,8 +481,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         if (oldPrice == newPrice) return;
         
         // Record state before adjustment
-        uint256 oldPoolTokens = poolTokens;
-        uint256 oldReserveTokens = reserveTokens;
+        uint256 oldPoolAntiBTC = poolAntiBTC;
+        uint256 oldReserveAntiBTC = reserveAntiBTC;
         
         // Calculate price change ratio
         uint256 priceRatio;
@@ -495,18 +495,18 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             
             // AntiBTC price should fall, pool tokens should increase
             // New pool tokens = old pool tokens * priceRatio
-            uint256 newPoolTokens = (poolTokens * priceRatio) / 1e18;
-            uint256 tokensToAdd = newPoolTokens - poolTokens;
+            uint256 newPoolAntiBTC = (poolAntiBTC * priceRatio) / 1e18;
+            uint256 tokensToAdd = newPoolAntiBTC - poolAntiBTC;
             
             // Check if reserve is sufficient
-            if (tokensToAdd <= reserveTokens) {
+            if (tokensToAdd <= reserveAntiBTC) {
                 // Sufficient, adjust directly
-                poolTokens = newPoolTokens;
-                reserveTokens -= tokensToAdd;
-            } else if (reserveTokens > 0) {
+                poolAntiBTC = newPoolAntiBTC;
+                reserveAntiBTC -= tokensToAdd;
+            } else if (reserveAntiBTC > 0) {
                 // Insufficient, use all reserves
-                poolTokens += reserveTokens;
-                reserveTokens = 0;
+                poolAntiBTC += reserveAntiBTC;
+                reserveAntiBTC = 0;
             }
         } else {
             // BTC price falls
@@ -516,27 +516,27 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             
             // AntiBTC price should rise, pool tokens should decrease
             // New pool tokens = old pool tokens / priceRatio = old pool tokens * (newPrice / oldPrice)
-            uint256 newPoolTokens = (poolTokens * 1e18) / priceRatio;
-            uint256 tokensToRemove = poolTokens - newPoolTokens;
+            uint256 newPoolAntiBTC = (poolAntiBTC * 1e18) / priceRatio;
+            uint256 tokensToRemove = poolAntiBTC - newPoolAntiBTC;
             
             // Ensure enough tokens remain in pool (at least 1000)
-            if (tokensToRemove < poolTokens && newPoolTokens >= 1000 * 1e18) {
-                poolTokens = newPoolTokens;
-                reserveTokens += tokensToRemove;
+            if (tokensToRemove < poolAntiBTC && newPoolAntiBTC >= 1000 * 1e18) {
+                poolAntiBTC = newPoolAntiBTC;
+                reserveAntiBTC += tokensToRemove;
             }
         }
         
         // Ensure at least 1000 tokens in pool (prevent infinite price)
-        if (poolTokens < 1000 * 1e18) {
-            uint256 tokensToAdd = 1000 * 1e18 - poolTokens;
-            if (tokensToAdd <= reserveTokens) {
-                poolTokens += tokensToAdd;
-                reserveTokens -= tokensToAdd;
+        if (poolAntiBTC < 1000 * 1e18) {
+            uint256 tokensToAdd = 1000 * 1e18 - poolAntiBTC;
+            if (tokensToAdd <= reserveAntiBTC) {
+                poolAntiBTC += tokensToAdd;
+                reserveAntiBTC -= tokensToAdd;
             }
         }
         
         // Emit pool adjustment event
-        emit PoolAdjusted(oldPoolTokens, poolTokens, oldReserveTokens, reserveTokens);
+        emit PoolAdjusted(oldPoolAntiBTC, poolAntiBTC, oldReserveAntiBTC, reserveAntiBTC);
     }
 
 } 

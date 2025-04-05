@@ -153,7 +153,7 @@ describe("AntiBTC", function () {
     
     it("2.4 Should correctly set initial liquidity", async function () {
       // Verify initial liquidity settings
-      expect(await antiBTC.poolTokens()).to.equal(INITIAL_POOL_TOKENS);
+      expect(await antiBTC.poolAntiBTC()).to.equal(INITIAL_POOL_TOKENS);
       expect(await antiBTC.poolUSDT()).to.equal(INITIAL_POOL_USDT);
       
       // Verify initial price is 1 USDT
@@ -164,14 +164,14 @@ describe("AntiBTC", function () {
       expect(await antiBTC.totalSupply()).to.equal(TOTAL_SUPPLY);
       
       // Verify reserve amount
-      const reserveTokens = await antiBTC.reserveTokens();
+      const reserveTokens = await antiBTC.reserveAntiBTC();
       expect(reserveTokens).to.equal(TOTAL_SUPPLY.sub(INITIAL_POOL_TOKENS));
     });
   });
   
   describe("3. Liquidity Pool", function () {
     it("3.1 Should correctly set initial liquidity", async function () {
-      expect(await antiBTC.poolTokens()).to.equal(INITIAL_POOL_TOKENS);
+      expect(await antiBTC.poolAntiBTC()).to.equal(INITIAL_POOL_TOKENS);
       expect(await antiBTC.poolUSDT()).to.equal(INITIAL_POOL_USDT);
       
       // Verify initial price
@@ -240,7 +240,7 @@ describe("AntiBTC", function () {
         console.log("Gas Balance Before:", ethers.utils.formatEther(initialGasBalance), "BNB\n");
         
         // Get initial pool status
-        const initialPoolTokens = await antiBTC.poolTokens();
+        const initialPoolTokens = await antiBTC.poolAntiBTC();
         const initialPoolUsdt = await antiBTC.poolUSDT();
         const initialPrice = await antiBTC.getPrice();
         
@@ -292,7 +292,7 @@ describe("AntiBTC", function () {
         console.log("Actual Average Price:", ethers.utils.formatUnits(effectivePrice, 6), "AntiBTC/USDT\n");
         
         // Get final pool status
-        const finalPoolTokens = await antiBTC.poolTokens();
+        const finalPoolTokens = await antiBTC.poolAntiBTC();
         const finalPoolUsdt = await antiBTC.poolUSDT();
         const finalPrice = await antiBTC.getPrice();
         
