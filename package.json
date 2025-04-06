@@ -24,7 +24,8 @@
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.8.0",
     "hardhat": "^2.22.19",
-    "hardhat-gas-reporter": "^2.0.0"
+    "hardhat-gas-reporter": "^2.0.0",
+    "solidity-coverage": "^0.8.14"
   },
   "dependencies": {
     "@chainlink/contracts": "^0.8.0",

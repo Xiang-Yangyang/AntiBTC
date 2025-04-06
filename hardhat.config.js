@@ -3,6 +3,7 @@ require("@nomiclabs/hardhat-ethers");
 require("hardhat-gas-reporter");
 require("@nomiclabs/hardhat-etherscan");
 require('dotenv').config();
+require('solidity-coverage');
 
 // Common configuration
 const commonConfig = {
@@ -27,6 +28,26 @@ const commonConfig = {
     currency: 'USD',
     gasPrice: 5,
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
+  },
+  coverage: {
+    enabled: true,
+    reporter: ['text', 'html', 'lcov'],
+    reporterOptions: {
+      html: {
+        dir: './coverage/html'
+      },
+      lcov: {
+        dir: './coverage/lcov'
+      }
+    },
+    exclude: [
+      'test/',
+      'scripts/',
+      'hardhat.config.js'
+    ],
+    includeFiles: [
+      'test/AntiBTC.test.js'
+    ]
   },
   bnbUsdtPrice: 600,  // 1 BNB = 600 USDT
   networks: {
@@ -71,4 +92,18 @@ const commonConfig = {
   }
 };
 
-module.exports = commonConfig; 
+// 添加测试脚本配置
+module.exports = {
+  ...commonConfig,
+  // 添加测试脚本配置
+  test: {
+    // 指定测试脚本
+    testFiles: ["test/AntiBTC.test.js"],
+    // 指定测试网络
+    network: "hardhat",
+    // 指定测试账户
+    accounts: {
+      mnemonic: "test test test test test test test test test test test junk",
+    }
+  }
+}; 

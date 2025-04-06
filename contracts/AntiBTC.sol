@@ -13,9 +13,9 @@ import "./libraries/PriceCalculator.sol";
 
 /**
  * @title AntiBTC
- * @dev Implementation of the AntiBTC token with AMM functionality
+ * @dev Implementation of the AntiBTC token with AMM functionality and  // Chainlink Automation
  */
-contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompatible {
+contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     // Constants - use smaller types
     uint64 public constant PRICE_PRECISION = 1e8;  // 8 decimals for price
     uint16 public constant MAX_SLIPPAGE = 100;     // 1% max slippage
@@ -43,8 +43,6 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
 
     // Events
     event Swap(address indexed user, bool isBuy, uint256 tokenAmount, uint256 usdtAmount, uint256 fee);
-    event LiquidityAdded(address indexed provider, uint256 tokenAmount, uint256 usdtAmount);
-    event LiquidityRemoved(address indexed provider, uint256 tokenAmount, uint256 usdtAmount);
     event PriceUpdated(uint256 btcPrice, uint256 antibtcPrice);
     event Rebalanced(
         uint256 oldBtcPrice,
@@ -84,45 +82,10 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev Updates the BTC price from Binance oracle
-     */
-    function updatePrice() public {
-        (
-            uint80 roundID,
-            int256 btcPrice,
-            uint256 startedAt,
-            uint256 timeStamp,
-            uint80 answeredInRound
-        ) = priceFeed.latestRoundData();
-        
-        require(timeStamp != 0, "Round not complete");
-        require(answeredInRound >= roundID, "Stale price");
-        require(btcPrice > 0, "Invalid price");
-        require(uint256(btcPrice) <= type(uint64).max, "Price overflow");
-        
-        uint64 newPrice = uint64(uint256(btcPrice));
-        
-        if (newPrice != lastBTCPrice) {
-            lastBTCPrice = newPrice;
-            lastPriceUpdateTime = uint32(block.timestamp);
-            
-            uint256 antibtcPrice = calculateTargetAntiBTCPrice(newPrice);
-            emit PriceUpdated(newPrice, antibtcPrice);
-        }
-    }
-
-    /**
-     * @dev Calculates the inverse price of BTC
+     * @dev Calculates the target price of AntiBTC
      */
     function calculateTargetAntiBTCPrice(uint256 btcPrice) public pure returns (uint256) {
         return PriceCalculator.calculateTargetAntiBTCPrice(btcPrice);
-    }
-
-    /**
-     * @dev Alias for calculateTargetAntiBTCPrice for test compatibility
-     */
-    function calculateAntiPrice(uint256 btcPrice) public pure returns (uint256) {
-        return calculateTargetAntiBTCPrice(btcPrice);
     }
 
     /**
@@ -131,15 +94,23 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     function buyTokens(uint256 usdtIn) external nonReentrant whenNotPaused {
         require(usdtIn > 0, "Zero USDT amount");
         
-        // 1. Update BTC price
-        updatePrice();
-        
-        // Get current and last BTC price
+        // 1. Get current BTC price
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint256 currentBTCPrice = uint256(price);
         
-        // 2. Adjust pool based on BTC price change
-        _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
+        // 2. Check if price update is needed
+        uint256 timeSinceLastUpdate = block.timestamp - lastPriceUpdateTime;
+        uint256 priceChange = currentBTCPrice > lastBTCPrice ? 
+            ((currentBTCPrice - lastBTCPrice) * 1e8) / lastBTCPrice :
+            ((lastBTCPrice - currentBTCPrice) * 1e8) / lastBTCPrice;
+            
+        // Only update price and adjust pool if conditions are met
+        if (timeSinceLastUpdate >= REBALANCE_INTERVAL || priceChange >= REBALANCE_THRESHOLD) {
+            _adjustPoolForAntiBTCPrice(lastBTCPrice, currentBTCPrice);
+            lastBTCPrice = uint64(currentBTCPrice);
+            lastPriceUpdateTime = uint32(block.timestamp);
+            emit PriceUpdated(currentBTCPrice, calculateTargetAntiBTCPrice(currentBTCPrice));
+        }
         
         // 3. Calculate and deduct fee
         uint256 fee = (usdtIn * FEE_RATE) / 10000;
@@ -170,21 +141,29 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         require(antiBTCIn > 0, "Zero tokens");
         require(balanceOf(msg.sender) >= antiBTCIn, "Insufficient balance");
         
-        // Update price first
-        updatePrice();
-        
-        // Get current and last BTC price
+        // 1. Get current BTC price
         (, int256 price,,,) = priceFeed.latestRoundData();
         uint256 currentBTCPrice = uint256(price);
         
-        // 根据 BTC 价格变化调整池子
-        _adjustPoolForBTCPrice(lastBTCPrice, currentBTCPrice);
+        // 2. Check if price update is needed
+        uint256 timeSinceLastUpdate = block.timestamp - lastPriceUpdateTime;
+        uint256 priceChange = currentBTCPrice > lastBTCPrice ? 
+            ((currentBTCPrice - lastBTCPrice) * 1e8) / lastBTCPrice :
+            ((lastBTCPrice - currentBTCPrice) * 1e8) / lastBTCPrice;
+            
+        // Only update price and adjust pool if conditions are met
+        if (timeSinceLastUpdate >= REBALANCE_INTERVAL || priceChange >= REBALANCE_THRESHOLD) {
+            _adjustPoolForAntiBTCPrice(lastBTCPrice, currentBTCPrice);
+            lastBTCPrice = uint64(currentBTCPrice);
+            lastPriceUpdateTime = uint32(block.timestamp);
+            emit PriceUpdated(currentBTCPrice, calculateTargetAntiBTCPrice(currentBTCPrice));
+        }
         
-        // Calculate USDT out based on AMM formula - Calculate original USDT to receive
+        // Calculate USDT out based on AMM formula
         uint256 usdtRawOut = calculateUSDTOut(antiBTCIn);
         require(usdtRawOut > 0, "Zero USDT out");
         
-        // 计算并扣除手续费
+        // Calculate and deduct fee
         uint256 fee = (usdtRawOut * FEE_RATE) / 10000;
         uint256 usdtOut = usdtRawOut - fee;
         
@@ -213,58 +192,6 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
      */
     function calculateUSDTOut(uint256 tokensIn) public view returns (uint256) {
         return PriceCalculator.calculateAMMUSDTOut(tokensIn, poolAntiBTC, poolUSDT);
-    }
-
-    /**
-     * @dev Add liquidity to the pool
-     */
-    function addLiquidity(uint256 usdtAmount) external nonReentrant whenNotPaused {
-        require(usdtAmount > 0, "Zero USDT amount");
-        
-        // Calculate proportional amount of tokens
-        uint256 tokenAmount = (usdtAmount * poolAntiBTC) / poolUSDT;
-        require(tokenAmount > 0, "Zero token amount");
-        require(tokenAmount <= reserveAntiBTC, "Insufficient reserve tokens");
-        
-        // Transfer USDT from user
-        require(usdt.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
-        
-        // Transfer tokens from reserve to pool
-        poolAntiBTC += tokenAmount;
-        reserveAntiBTC -= tokenAmount;
-        
-        // Mint new tokens to liquidity provider
-        _transfer(address(this), msg.sender, tokenAmount);
-        
-        // Update pool state
-        poolUSDT += usdtAmount;
-        
-        emit LiquidityAdded(msg.sender, tokenAmount, usdtAmount);
-    }
-
-    /**
-     * @dev Remove liquidity from the pool
-     */
-    function removeLiquidity(uint256 tokenAmount) external nonReentrant whenNotPaused {
-        require(tokenAmount > 0, "Zero token amount");
-        require(balanceOf(msg.sender) >= tokenAmount, "Insufficient balance");
-        
-        // Calculate proportional amount of USDT
-        uint256 usdtAmount = (tokenAmount * poolUSDT) / poolAntiBTC;
-        require(usdtAmount > 0, "Zero USDT amount");
-        require(usdt.balanceOf(address(this)) >= usdtAmount, "Insufficient USDT in pool");
-        
-        // Transfer tokens from circulation pool to reserve pool
-        poolAntiBTC -= tokenAmount;
-        reserveAntiBTC += tokenAmount;
-        
-        // Transfer USDT to user
-        require(usdt.transfer(msg.sender, usdtAmount), "USDT transfer failed");
-        
-        // Update pool state
-        poolUSDT -= usdtAmount;
-        
-        emit LiquidityRemoved(msg.sender, tokenAmount, usdtAmount);
     }
 
     /**
@@ -305,29 +232,6 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     }
 
     /**
-     * @dev Chainlink Automation check function
-     * Returns true when rebalance is needed
-     */
-    function checkUpkeep(bytes calldata /* checkData */) 
-        external 
-        view 
-        override 
-        returns (bool upkeepNeeded, bytes memory /* performData */) 
-    {
-        upkeepNeeded = needsRebalance();
-        return (upkeepNeeded, "");
-    }
-
-    /**
-     * @dev Chainlink Automation execution function
-     * Can only be called by Chainlink Automation Registry
-     */
-    function performUpkeep(bytes calldata /* performData */) external override {
-        require(needsRebalance(), "Rebalance conditions not met");
-        _rebalance();  // Internal rebalance function
-    }
-
-    /**
      * @dev Internal rebalance function
      */
     function _rebalance() internal {
@@ -340,7 +244,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         
         // Adjust pool first, then update state
         // Pass old and new prices for adjustment
-        _adjustPoolForBTCPrice(oldBtcPrice, newBtcPrice);
+        _adjustPoolForAntiBTCPrice(oldBtcPrice, newBtcPrice);
         
         // Update state
         lastBTCPrice = uint64(newBtcPrice);
@@ -473,12 +377,12 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
     /**
      * @dev Adjust pool ratio based on BTC price change
      * When BTC price rises, AntiBTC price should fall; when BTC price falls, AntiBTC price should rise
-     * @param oldPrice BTC price before adjustment
-     * @param newPrice BTC price after adjustment
+     * @param oldBTCPrice BTC price before adjustment
+     * @param newBTCPrice BTC price after adjustment
      */
-    function _adjustPoolForBTCPrice(uint256 oldPrice, uint256 newPrice) internal {
+    function _adjustPoolForAntiBTCPrice(uint256 oldBTCPrice, uint256 newBTCPrice) internal {
         // If price hasn't changed, no adjustment needed
-        if (oldPrice == newPrice) return;
+        if (oldBTCPrice == newBTCPrice) return;
         
         // Record state before adjustment
         uint256 oldPoolAntiBTC = poolAntiBTC;
@@ -487,11 +391,11 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // Calculate price change ratio
         uint256 priceRatio;
         
-        if (newPrice > oldPrice) {
+        if (newBTCPrice > oldBTCPrice) {
             // BTC price rises
             // Example: BTC price rises from 20000 to 22000, up 10%
             // priceRatio = 22000 * 1e18 / 20000 = 1.1 * 1e18
-            priceRatio = (newPrice * 1e18) / oldPrice;
+            priceRatio = (newBTCPrice * 1e18) / oldBTCPrice;
             
             // AntiBTC price should fall, pool tokens should increase
             // New pool tokens = old pool tokens * priceRatio
@@ -512,7 +416,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
             // BTC price falls
             // Example: BTC price falls from 20000 to 18000, down 10%
             // priceRatio = 20000 * 1e18 / 18000 = 1.111... * 1e18
-            priceRatio = (oldPrice * 1e18) / newPrice;
+            priceRatio = (oldBTCPrice * 1e18) / newBTCPrice;
             
             // AntiBTC price should rise, pool tokens should decrease
             // New pool tokens = old pool tokens / priceRatio = old pool tokens * (newPrice / oldPrice)
@@ -538,5 +442,28 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable, AutomationCompati
         // Emit pool adjustment event
         emit PoolAdjusted(oldPoolAntiBTC, poolAntiBTC, oldReserveAntiBTC, reserveAntiBTC);
     }
-
 } 
+
+
+    // /**
+    //  * @dev Chainlink Automation check function
+    //  * Returns true when rebalance is needed
+    //  */
+    // function checkUpkeep(bytes calldata /* checkData */) 
+    //     external 
+    //     view 
+    //     override 
+    //     returns (bool upkeepNeeded, bytes memory /* performData */) 
+    // {
+    //     upkeepNeeded = needsRebalance();
+    //     return (upkeepNeeded, "");
+    // }
+
+    // /**
+    //  * @dev Chainlink Automation execution function
+    //  * Can only be called by Chainlink Automation Registry
+    //  */
+    // function performUpkeep(bytes calldata /* performData */) external override {
+    //     require(needsRebalance(), "Rebalance conditions not met");
+    //     _rebalance();  // Internal rebalance function
+    // }
