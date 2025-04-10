@@ -7,18 +7,20 @@ pragma solidity ^0.8.19;
  */
 library PriceCalculator {
     uint256 constant PRICE_PRECISION = 1e8;  // 8 decimals for price
-    uint256 constant K = 1e8;               // K = 1 USD * BTC (inverse proportion constant)
+    // K = initial AntiBTC price (with precision) * initial BTC price (with precision)
+    uint256 constant K = 1e8 * 20000 * 1e8;  // 2e20
 
     /**
      * @dev Calculate the inverse price for AntiBTC using inverse proportion
      * antiPrice = K / btcPrice
-     * Example: When BTC = $20,000, AntiBTC = $1/$20,000 = $0.00005
-     *          When BTC = $10,000, AntiBTC = $1/$10,000 = $0.0001
+     * Example: When BTC = $20,000, AntiBTC = $1 
+     *          When BTC = $10,000, AntiBTC = $2
      */
     function calculateTargetAntiBTCPrice(uint256 btcPrice) internal pure returns (uint256) {
         require(btcPrice > 0, "BTC price cannot be zero");
-        // Calculate inverse price using K/btcPrice, maintaining 8 decimal precision
-        return (K * PRICE_PRECISION) / btcPrice;
+        // btcPrice with 8 decimals
+        // return value with 8 decimals
+        return K / btcPrice;  
     }
 
     /**

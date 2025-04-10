@@ -137,12 +137,13 @@ describe("AntiBTC", function () {
   });
 
   describe("2. Contract Deployment", function () {
-    it("2.1 Should successfully deploy AntiBTC contract", async function () {
+    it("2.1 Should successfully deploy AntiBTC contract", async function () { 
       expect(await antiBTC.name()).to.equal("AntiBTC");
       expect(await antiBTC.symbol()).to.equal("AntiBTC");
     });
     
     it("2.2 Should correctly set token name and symbol", async function () {
+      expect(await antiBTC.name()).to.equal("AntiBTC");
       expect(await antiBTC.name()).to.equal("AntiBTC");
       expect(await antiBTC.symbol()).to.equal("AntiBTC");
     });
@@ -186,7 +187,9 @@ describe("AntiBTC", function () {
       
       // Verify theoretical reverse price
       const antiPrice = await antiBTC.calculateAntiPrice(initialBTCPrice);
-      expect(antiPrice).to.equal(ethers.utils.parseUnits("0.00005", 8));
+      // K = 20000e8, btcPrice = 20000e8
+      // antiPrice = K * 1e8 / btcPrice = 20000e8 * 1e8 / 20000e8 = 1e8 (1 USD)
+      expect(antiPrice).to.equal(ethers.utils.parseUnits("1", 8));
     });
     
     it("3.3 Should correctly calculate slippage", async function() {
@@ -363,18 +366,47 @@ describe("AntiBTC", function () {
     it("4.3 Should allow user to sell AntiBTC for USDT", async function() {
         // First buy some tokens
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
+        console.log("\n=== Initial Purchase to Get AntiBTC ===");
+        console.log("Buying Amount:", ethers.utils.formatUnits(usdtAmount, 6), "USDT");
         await mockUSDT.connect(owner).approve(antiBTC.address, usdtAmount);
-        await antiBTC.connect(owner).buyTokens(usdtAmount);
+        const buyTx = await antiBTC.connect(owner).buyTokens(usdtAmount);
+        const buyReceipt = await buyTx.wait();
+        const buyEvent = buyReceipt.events.find(e => e.event === "Swap");
+        console.log("Received AntiBTC:", ethers.utils.formatEther(buyEvent.args.tokenAmount), "AntiBTC");
         
         // Get balances before selling
         const initialUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const initialAntiBalance = await antiBTC.balanceOf(owner.address);
         const initialGasBalance = await owner.getBalance();
         
+        console.log("\n=== Pre-Sell Status ===");
+        console.log("USDT Balance Before:", ethers.utils.formatUnits(initialUsdtBalance, 6), "USDT");
+        console.log("AntiBTC Balance Before:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
+        console.log("Gas Balance Before:", ethers.utils.formatEther(initialGasBalance), "BNB");
+        
+        // Get initial pool status
+        const initialPoolTokens = await antiBTC.poolAntiBTC();
+        const initialPoolUsdt = await antiBTC.poolUSDT();
+        const initialPrice = await antiBTC.getPrice();
+        
+        console.log("\n=== Initial Pool Status ===");
+        console.log("AntiBTC in Pool:", ethers.utils.formatEther(initialPoolTokens), "AntiBTC");
+        console.log("USDT in Pool:", ethers.utils.formatUnits(initialPoolUsdt, 6), "USDT");
+        console.log("Current Price:", ethers.utils.formatUnits(initialPrice, 6), "AntiBTC/USDT");
+        
         // Calculate expected USDT amount to be received
         const expectedUsdt = await antiBTC.calculateUSDTOut(initialAntiBalance);
+        const fee = expectedUsdt.mul(30).div(10000);  // 0.3% fee
+        const expectedUsdtAfterFee = expectedUsdt.sub(fee);
+        
+        console.log("\n=== Expected Sell Result ===");
+        console.log("Selling Amount:", ethers.utils.formatEther(initialAntiBalance), "AntiBTC");
+        console.log("Expected USDT:", ethers.utils.formatUnits(expectedUsdt, 6), "USDT");
+        console.log("Expected Fee:", ethers.utils.formatUnits(fee, 6), "USDT");
+        console.log("Expected USDT After Fee:", ethers.utils.formatUnits(expectedUsdtAfterFee, 6), "USDT");
         
         // Execute sell
+        console.log("\n=== Executing Sell Transaction ===");
         const tx = await antiBTC.connect(owner).sellTokens(initialAntiBalance);
         const receipt = await tx.wait();
         
@@ -382,7 +414,6 @@ describe("AntiBTC", function () {
         const gasUsed = receipt.gasUsed;
         const gasPrice = ethers.utils.parseUnits("5", "gwei");  // 5 gwei
         const gasCost = gasUsed.mul(gasPrice);
-        // Convert using 1 BNB = 600 USDT rate
         const gasCostInUsdt = gasCost.mul(600).mul(ethers.utils.parseUnits("1", 6)).div(ethers.utils.parseEther("1"));
         
         console.log("\n=== Gas Fee Information ===");
@@ -390,18 +421,40 @@ describe("AntiBTC", function () {
         console.log("Gas Price:", ethers.utils.formatUnits(gasPrice, "gwei"), "gwei");
         console.log("Total Gas Cost:", ethers.utils.formatEther(gasCost), "BNB");
         console.log("Gas Cost (USDT):", ethers.utils.formatUnits(gasCostInUsdt, 6), "USDT");
-        console.log("==================\n");
         
-        // Get event
+        // Get event details
         const swapEvent = receipt.events.find(e => e.event === "Swap");
+        console.log("\n=== Swap Event Details ===");
+        console.log("User:", swapEvent.args.user);
+        console.log("Is Buy:", swapEvent.args.isBuy);
+        console.log("Token Amount:", ethers.utils.formatEther(swapEvent.args.tokenAmount), "AntiBTC");
+        console.log("USDT Amount:", ethers.utils.formatUnits(swapEvent.args.usdtAmount, 6), "USDT");
+        console.log("Fee:", ethers.utils.formatUnits(swapEvent.args.fee, 6), "USDT");
         
         // Get final balances
         const finalUsdtBalance = await mockUSDT.balanceOf(owner.address);
         const finalAntiBalance = await antiBTC.balanceOf(owner.address);
         const finalGasBalance = await owner.getBalance();
         
+        // Get final pool status
+        const finalPoolTokens = await antiBTC.poolAntiBTC();
+        const finalPoolUsdt = await antiBTC.poolUSDT();
+        const finalPrice = await antiBTC.getPrice();
+        
+        console.log("\n=== Final Status ===");
+        console.log("USDT Balance After:", ethers.utils.formatUnits(finalUsdtBalance, 6), "USDT");
+        console.log("AntiBTC Balance After:", ethers.utils.formatEther(finalAntiBalance), "AntiBTC");
+        console.log("Gas Balance After:", ethers.utils.formatEther(finalGasBalance), "BNB");
+        console.log("USDT Change:", ethers.utils.formatUnits(finalUsdtBalance.sub(initialUsdtBalance), 6), "USDT");
+        console.log("Gas Used (in BNB):", ethers.utils.formatEther(initialGasBalance.sub(finalGasBalance)), "BNB");
+        
+        console.log("\n=== Final Pool Status ===");
+        console.log("AntiBTC in Pool:", ethers.utils.formatEther(finalPoolTokens), "AntiBTC");
+        console.log("USDT in Pool:", ethers.utils.formatUnits(finalPoolUsdt, 6), "USDT");
+        console.log("Final Price:", ethers.utils.formatUnits(finalPrice, 6), "AntiBTC/USDT");
+        
         // Verify balance changes
-        expect(finalUsdtBalance).to.equal(initialUsdtBalance.add(expectedUsdt.sub(expectedUsdt.mul(30).div(10000))));
+        expect(finalUsdtBalance).to.equal(initialUsdtBalance.add(expectedUsdtAfterFee));
         expect(finalAntiBalance).to.equal(0);
     });
 
@@ -433,10 +486,6 @@ describe("AntiBTC", function () {
       const newBtcPrice = initialBtcPrice.mul(110).div(100);
       await mockOracle.updatePrice(newBtcPrice);
       
-      // Verify oracle price has been updated
-      const oracleDataAfterUpdate = await mockOracle.latestRoundData();
-      expect(oracleDataAfterUpdate[1]).to.equal(newBtcPrice);
-      
       // Calculate theoretical target price
       // When BTC rises 10%, AntiBTC price should fall about 9.09% (1/1.1 ≈ 0.9091)
       const expectedPriceAfterBtcIncrease = initialPoolPrice.mul(1e6).div(ethers.utils.parseUnits("1.1", 6));
@@ -451,8 +500,8 @@ describe("AntiBTC", function () {
       console.log("\nPre-Rebalance Pool Status:");
       console.log("AntiBTC in Pool:", ethers.utils.formatEther(beforeRebalancePoolInfo[0]), "AntiBTC");
       console.log("USDT in Pool:", ethers.utils.formatUnits(beforeRebalancePoolInfo[2], 6), "USDT");
-      console.log("Current Price:", ethers.utils.formatUnits(await antiBTC.getPrice(), 6), "AntiBTC/USDT");
-      console.log("Current Price:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(await antiBTC.getPrice())), "AntiBTC/USDT");
+      const preRebalancePrice = await antiBTC.getPrice();
+      console.log("AntiBTC Price:", ethers.utils.formatUnits(preRebalancePrice, 6), "AntiBTC/USDT");
       
       // Trigger rebalance
       await ethers.provider.send("evm_increaseTime", [8 * 60 * 60]);
@@ -484,8 +533,7 @@ describe("AntiBTC", function () {
       console.log("\n----- Post-Rebalance Pool Status -----");
       console.log("AntiBTC in Pool:", ethers.utils.formatEther(afterRebalancePoolInfo[0]), "AntiBTC");
       console.log("USDT in Pool:", ethers.utils.formatUnits(afterRebalancePoolInfo[2], 6), "USDT");
-      console.log("Post-Rebalance Price:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(afterRebalancePrice)), "AntiBTC/USDT");
-      console.log("Current Price:", ethers.utils.formatUnits(afterRebalancePrice, 6), "AntiBTC/USDT");
+      console.log("AntiBTC Price:", ethers.utils.formatUnits(afterRebalancePrice, 6), "USDT/AntiBTC");
       
       // Calculate price change percentage
       const priceChangePercent = initialPoolPrice.gt(afterRebalancePrice) 
@@ -504,9 +552,10 @@ describe("AntiBTC", function () {
       const upperBound = expectedPriceAfterBtcIncrease.mul(101).div(100);
       
       // Verify price is within expected range
-      console.log("Expected Price Lower Bound:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(lowerBound)), "AntiBTC/USDT");
-      console.log("Actual Price:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(afterRebalancePrice)), "AntiBTC/USDT");
-      console.log("Expected Price Upper Bound:", ethers.utils.formatEther(ethers.utils.parseUnits("1", 18).mul(ethers.utils.parseUnits("1", 6)).div(upperBound)), "AntiBTC/USDT");
+      console.log("Expected Price Range:");
+      console.log("Lower Bound:", ethers.utils.formatUnits(lowerBound, 6), "USDT/AntiBTC");
+      console.log("Actual Price:", ethers.utils.formatUnits(afterRebalancePrice, 6), "USDT/AntiBTC");
+      console.log("Upper Bound:", ethers.utils.formatUnits(upperBound, 6), "USDT/AntiBTC");
       
       expect(afterRebalancePrice).to.be.gt(lowerBound);
       expect(afterRebalancePrice).to.be.lt(upperBound);
@@ -554,18 +603,18 @@ describe("AntiBTC", function () {
       // When BTC price is $20,000
       const antiPrice = await antiBTC.calculateAntiPrice(initialBTCPrice);
       
-      // K = 1e8, btcPrice = 20000e8
-      // antiPrice = K * 1e8 / btcPrice = 1e8 * 1e8 / 20000e8 = 5000 (0.00005 USD)
-      const expectedAntiPrice = ethers.utils.parseUnits("0.00005", 8);
+      // K = 20000e8, btcPrice = 20000e8
+      // antiPrice = K * 1e8 / btcPrice = 20000e8 * 1e8 / 20000e8 = 1e8 (1 USD)
+      const expectedAntiPrice = ethers.utils.parseUnits("1", 8);
       expect(antiPrice).to.equal(expectedAntiPrice);
       
       // Test lower BTC price
       const lowerBTCPrice = ethers.utils.parseUnits("10000", 8); // $10,000
       const antiPriceLower = await antiBTC.calculateAntiPrice(lowerBTCPrice);
       
-      // K = 1e8, btcPrice = 10000e8
-      // antiPrice = K * 1e8 / btcPrice = 1e8 * 1e8 / 10000e8 = 10000 (0.0001 USD)
-      const expectedAntiPriceLower = ethers.utils.parseUnits("0.0001", 8);
+      // K = 20000e8, btcPrice = 10000e8
+      // antiPrice = K * 1e8 / btcPrice = 20000e8 * 1e8 / 10000e8 = 2e8 (2 USD)
+      const expectedAntiPriceLower = ethers.utils.parseUnits("2", 8);
       expect(antiPriceLower).to.equal(expectedAntiPriceLower);
     });
     

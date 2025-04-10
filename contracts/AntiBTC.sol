@@ -29,8 +29,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     // State variables
     AggregatorV3Interface public immutable priceFeed;  // Binance Oracle interface
     IERC20 public usdt;  // USDT contract
-    uint64 public lastBTCPrice;  // 改用 uint64
-    uint32 public lastPriceUpdateTime;  // 改用 uint32
+    uint64 public lastBTCPrice;  // Use uint64
+    uint32 public lastPriceUpdateTime;  // Use uint32
     
     // Pool variables - keep uint256 because it involves token amounts
     uint256 public poolAntiBTC;    // Circulating supply (tokens in pool)
@@ -89,6 +89,15 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
+     * @dev Calculate the target AntiBTC price based on BTC price
+     * @param btcPrice BTC price (8 decimals precision)
+     * @return AntiBTC price (8 decimals precision)
+     */
+    function calculateAntiPrice(uint256 btcPrice) public pure returns (uint256) {
+        return calculateTargetAntiBTCPrice(btcPrice);
+    }
+
+    /**
      * @dev Buy AntiBTC tokens with USDT
      */
     function buyTokens(uint256 usdtIn) external nonReentrant whenNotPaused {
@@ -106,10 +115,11 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
             
         // Only update price and adjust pool if conditions are met
         if (timeSinceLastUpdate >= REBALANCE_INTERVAL || priceChange >= REBALANCE_THRESHOLD) {
-            _adjustPoolForAntiBTCPrice(lastBTCPrice, currentBTCPrice);
+            uint256 targetPrice = calculateTargetAntiBTCPrice(currentBTCPrice);
+            _adjustPoolForAntiBTCPrice(targetPrice);
             lastBTCPrice = uint64(currentBTCPrice);
             lastPriceUpdateTime = uint32(block.timestamp);
-            emit PriceUpdated(currentBTCPrice, calculateTargetAntiBTCPrice(currentBTCPrice));
+            emit PriceUpdated(currentBTCPrice, targetPrice);
         }
         
         // 3. Calculate and deduct fee
@@ -153,23 +163,24 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
             
         // Only update price and adjust pool if conditions are met
         if (timeSinceLastUpdate >= REBALANCE_INTERVAL || priceChange >= REBALANCE_THRESHOLD) {
-            _adjustPoolForAntiBTCPrice(lastBTCPrice, currentBTCPrice);
+            uint256 targetPrice = calculateTargetAntiBTCPrice(currentBTCPrice);
+            _adjustPoolForAntiBTCPrice(targetPrice);
             lastBTCPrice = uint64(currentBTCPrice);
             lastPriceUpdateTime = uint32(block.timestamp);
-            emit PriceUpdated(currentBTCPrice, calculateTargetAntiBTCPrice(currentBTCPrice));
+            emit PriceUpdated(currentBTCPrice, targetPrice);
         }
         
         // Calculate USDT out based on AMM formula
         uint256 usdtRawOut = calculateUSDTOut(antiBTCIn);
         require(usdtRawOut > 0, "Zero USDT out");
         
-        // Calculate and deduct fee
+        // 3. Calculate and deduct fee
         uint256 fee = (usdtRawOut * FEE_RATE) / 10000;
         uint256 usdtOut = usdtRawOut - fee;
         
         require(usdt.balanceOf(address(this)) >= usdtOut, "Insufficient liquidity");
         
-        // Update pool state
+        // 4. Update pool state
         poolAntiBTC += antiBTCIn;
         poolUSDT -= usdtOut;  // Only deduct actual USDT paid to user, fees stay in pool
         
@@ -242,11 +253,10 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
         uint256 oldAntiPrice = PriceCalculator.calculateTargetAntiBTCPrice(oldBtcPrice);
         uint256 newAntiPrice = PriceCalculator.calculateTargetAntiBTCPrice(newBtcPrice);
         
-        // Adjust pool first, then update state
-        // Pass old and new prices for adjustment
-        _adjustPoolForAntiBTCPrice(oldBtcPrice, newBtcPrice);
+        // 直接传入目标价格进行调整
+        _adjustPoolForAntiBTCPrice(newAntiPrice);
         
-        // Update state
+        // 更新状态
         lastBTCPrice = uint64(newBtcPrice);
         lastPriceUpdateTime = uint32(block.timestamp);
         
@@ -314,23 +324,6 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @dev Get current pool price information
-     * @return _btcPrice Current BTC price
-     * @return _antiPrice Current theoretical AntiBTC price
-     * @return _poolPrice AntiBTC/USDT price in pool (how many USDT per AntiBTC)
-     */
-    function getPriceInfo() external view returns (
-        uint256 _btcPrice,
-        uint256 _antiPrice,
-        uint256 _poolPrice
-    ) {
-        uint256 antiPrice = calculateTargetAntiBTCPrice(lastBTCPrice);
-        uint256 poolPrice = poolAntiBTC > 0 ? (poolUSDT * 1e18) / poolAntiBTC : 0;  // 1e18 is for precision
-        
-        return (lastBTCPrice, antiPrice, poolPrice);
-    }
-
-    /**
      * @dev Get rebalance status information
      * @return _needsRebalance Whether rebalance is needed
      * @return _timeSinceLastRebalance Time since last rebalance (seconds)
@@ -375,62 +368,64 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @dev Adjust pool ratio based on BTC price change
-     * When BTC price rises, AntiBTC price should fall; when BTC price falls, AntiBTC price should rise
-     * @param oldBTCPrice BTC price before adjustment
-     * @param newBTCPrice BTC price after adjustment
+     * @dev Adjust pool ratio based on target AntiBTC price
+     * @param targetAntiBTCPrice Target AntiBTC price (8 decimal precision)
      */
-    function _adjustPoolForAntiBTCPrice(uint256 oldBTCPrice, uint256 newBTCPrice) internal {
-        // If price hasn't changed, no adjustment needed
-        if (oldBTCPrice == newBTCPrice) return;
+    function _adjustPoolForAntiBTCPrice(uint256 targetAntiBTCPrice) internal {
+        // Get current pool AntiBTC price (convert to 8 decimal precision)
+        uint256 currentPoolPrice = (poolUSDT * 1e20) / poolAntiBTC;  // Convert to 8 decimal precision
         
-        // Record state before adjustment
+        // If prices are equal, no adjustment is needed
+        if (currentPoolPrice == targetAntiBTCPrice) return;
+        
+        // Record the state before adjustment
         uint256 oldPoolAntiBTC = poolAntiBTC;
         uint256 oldReserveAntiBTC = reserveAntiBTC;
         
         // Calculate price change ratio
         uint256 priceRatio;
         
-        if (newBTCPrice > oldBTCPrice) {
-            // BTC price rises
-            // Example: BTC price rises from 20000 to 22000, up 10%
-            // priceRatio = 22000 * 1e18 / 20000 = 1.1 * 1e18
-            priceRatio = (newBTCPrice * 1e18) / oldBTCPrice;
+        if (targetAntiBTCPrice < currentPoolPrice) {
+            // Target price is lower than current price
+            // Example: Current price 1.1 USDT, target price 1.0 USDT
+            // priceRatio = 1.1 * 1e18 / 1.0 = 1.1 * 1e18
+            priceRatio = (currentPoolPrice * 1e18) / targetAntiBTCPrice;
             
-            // AntiBTC price should fall, pool tokens should increase
-            // New pool tokens = old pool tokens * priceRatio
+            // AntiBTC price should decrease, token amount in the pool should increase
+            // New pool token amount = old pool token amount * priceRatio
             uint256 newPoolAntiBTC = (poolAntiBTC * priceRatio) / 1e18;
             uint256 tokensToAdd = newPoolAntiBTC - poolAntiBTC;
             
             // Check if reserve is sufficient
             if (tokensToAdd <= reserveAntiBTC) {
-                // Sufficient, adjust directly
+                // Sufficient, directly adjust
                 poolAntiBTC = newPoolAntiBTC;
                 reserveAntiBTC -= tokensToAdd;
             } else if (reserveAntiBTC > 0) {
-                // Insufficient, use all reserves
+                // Insufficient, use all reserve
                 poolAntiBTC += reserveAntiBTC;
                 reserveAntiBTC = 0;
             }
         } else {
-            // BTC price falls
-            // Example: BTC price falls from 20000 to 18000, down 10%
-            // priceRatio = 20000 * 1e18 / 18000 = 1.111... * 1e18
-            priceRatio = (oldBTCPrice * 1e18) / newBTCPrice;
+            // Target price is higher than current price
+            // Example: Current price 0.9 USDT, target price 1.0 USDT
+            // priceRatio = 1.0 * 1e18 / 0.9 = 1.111... * 1e18
+
+            priceRatio = (targetAntiBTCPrice * 1e18) / currentPoolPrice;
             
-            // AntiBTC price should rise, pool tokens should decrease
-            // New pool tokens = old pool tokens / priceRatio = old pool tokens * (newPrice / oldPrice)
+            // AntiBTC price should increase, token amount in the pool should decrease
+            // New pool token amount = old pool token amount / priceRatio
             uint256 newPoolAntiBTC = (poolAntiBTC * 1e18) / priceRatio;
             uint256 tokensToRemove = poolAntiBTC - newPoolAntiBTC;
             
-            // Ensure enough tokens remain in pool (at least 1000)
+            // Ensure pool has enough tokens (at least 1000)
             if (tokensToRemove < poolAntiBTC && newPoolAntiBTC >= 1000 * 1e18) {
                 poolAntiBTC = newPoolAntiBTC;
                 reserveAntiBTC += tokensToRemove;
             }
         }
         
-        // Ensure at least 1000 tokens in pool (prevent infinite price)
+        // Ensure pool has at least 1000 tokens (prevent price from becoming too high)
         if (poolAntiBTC < 1000 * 1e18) {
             uint256 tokensToAdd = 1000 * 1e18 - poolAntiBTC;
             if (tokensToAdd <= reserveAntiBTC) {
@@ -466,4 +461,22 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
     // function performUpkeep(bytes calldata /* performData */) external override {
     //     require(needsRebalance(), "Rebalance conditions not met");
     //     _rebalance();  // Internal rebalance function
+    // }
+
+
+    // /**
+    //  * @dev Get current pool price information
+    //  * @return _btcPrice Current BTC price
+    //  * @return _antiPrice Current theoretical AntiBTC price
+    //  * @return _poolPrice AntiBTC/USDT price in pool (how many USDT per AntiBTC)
+    //  */
+    // function getPriceInfo() external view returns (
+    //     uint256 _btcPrice,
+    //     uint256 _antiPrice,
+    //     uint256 _poolPrice
+    // ) {
+    //     uint256 antiPrice = calculateTargetAntiBTCPrice(lastBTCPrice);
+    //     uint256 poolPrice = poolAntiBTC > 0 ? (poolUSDT * 1e18) / poolAntiBTC : 0;  // 1e18 is for precision
+        
+    //     return (lastBTCPrice, antiPrice, poolPrice);
     // }
