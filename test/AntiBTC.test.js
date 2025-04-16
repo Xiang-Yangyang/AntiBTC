@@ -159,7 +159,7 @@ describe("AntiBTC", function () {
       
       // Verify initial price is 1 USDT
       const price = await antiBTC.getPrice();
-      expect(ethers.utils.formatUnits(price, 6)).to.equal("1.0");
+      expect(ethers.utils.formatUnits(price, 8)).to.equal("1.0");
       
       // Verify total supply
       expect(await antiBTC.totalSupply()).to.equal(TOTAL_SUPPLY);
@@ -177,13 +177,13 @@ describe("AntiBTC", function () {
       
       // Verify initial price
       const price = await antiBTC.getPrice();
-      expect(ethers.utils.formatUnits(price, 6)).to.equal("1.0");
+      expect(ethers.utils.formatUnits(price, 8)).to.equal("1.0");
     });
     
     it("3.2 Should correctly calculate price", async function () {
       // Verify initial price is 1 USDT
       const poolPrice = await antiBTC.getPrice();
-      expect(ethers.utils.formatUnits(poolPrice, 6)).to.equal("1.0");
+      expect(ethers.utils.formatUnits(poolPrice, 8)).to.equal("1.0");
       
       // Verify theoretical reverse price
       const antiPrice = await antiBTC.calculateAntiPrice(initialBTCPrice);
@@ -624,8 +624,8 @@ describe("AntiBTC", function () {
         // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmount);
         
-        // Calculate actual price
-        const actualPrice = usdtAmount.mul(ethers.utils.parseEther("1")).div(expectedTokens);
+        // Calculate actual price with 8 decimal precision
+        const actualPrice = usdtAmount.mul(ethers.utils.parseUnits("1", 20)).div(expectedTokens);
         
         // Get theoretical price
         const theoreticalPrice = await antiBTC.getPrice();
@@ -637,11 +637,11 @@ describe("AntiBTC", function () {
     it("5.4 Should correctly calculate AntiBTC price (considering liquidity)", async function() {
         const usdtAmount = ethers.utils.parseUnits("1000", 6);  // 1000 USDT
       
-      // Calculate expected tokens to be received
+        // Calculate expected tokens to be received
         const expectedTokens = await antiBTC.calculateTokensOut(usdtAmount);
         
-        // Calculate actual price
-        const actualPrice = usdtAmount.mul(ethers.utils.parseEther("1")).div(expectedTokens);
+        // Calculate actual price with 8 decimal precision
+        const actualPrice = usdtAmount.mul(ethers.utils.parseUnits("1", 20)).div(expectedTokens);
         
         // Get theoretical price
         const theoreticalPrice = await antiBTC.getPrice();

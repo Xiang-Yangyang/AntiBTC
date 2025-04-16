@@ -355,7 +355,7 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
 
     /**
      * @dev Get current AntiBTC USDT price
-     * @return price Current AntiBTC price (in USDT, 6 decimals precision)
+     * @return price Current AntiBTC price (in USDT, 8 decimals precision)
      */
     function getPrice() public view returns (uint256) {
         // Calculate price from liquidity pool
@@ -363,8 +363,8 @@ contract AntiBTC is ERC20, ReentrancyGuard, Pausable, Ownable {
         
         // price = poolUSDT / poolTokens
         // poolUSDT precision is 6, poolTokens precision is 18
-        // To maintain precision, we need to multiply by 1e18 first
-        return (poolUSDT * 1e18) / poolAntiBTC;
+        // To get 8 decimal precision for price, we need to multiply by 1e20
+        return (poolUSDT * 1e20) / poolAntiBTC;
     }
 
     /**
